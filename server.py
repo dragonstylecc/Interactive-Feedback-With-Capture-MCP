@@ -8,17 +8,15 @@ import json
 import base64
 import tempfile
 import subprocess
-
-from typing import Dict
+import uuid
 
 from fastmcp import FastMCP
 from fastmcp.utilities.types import Image
 from pydantic import Field
 
-# The log_level is necessary for Cline to work: https://github.com/jlowin/fastmcp/issues/81
-mcp = FastMCP("Interactive Feedback MCP", log_level="ERROR")
+mcp = FastMCP("Interactive Feedback MCP")
 
-def launch_feedback_ui(summary: str, predefinedOptions: list[str] | None = None) -> dict:
+def launch_feedback_ui(summary: str, predefined_options: list[str] | None = None) -> dict:
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
         output_file = tmp.name
 
@@ -32,24 +30,27 @@ def launch_feedback_ui(summary: str, predefinedOptions: list[str] | None = None)
             feedback_ui_path,
             "--prompt", summary,
             "--output-file", output_file,
-            "--predefined-options", "|||".join(predefinedOptions) if predefinedOptions else ""
+            "--predefined-options", "|||".join(predefined_options) if predefined_options else ""
         ]
         result = subprocess.run(
             args,
             check=False,
             shell=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             stdin=subprocess.DEVNULL,
-            close_fds=True
         )
         if result.returncode != 0:
-            raise Exception(f"Failed to launch feedback UI: {result.returncode}")
+            stderr_text = result.stderr.decode("utf-8", errors="replace").strip()
+            raise Exception(
+                f"Feedback UI exited with code {result.returncode}"
+                + (f": {stderr_text}" if stderr_text else "")
+            )
 
-        with open(output_file, 'r') as f:
-            result = json.load(f)
+        with open(output_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
         os.unlink(output_file)
-        return result
+        return data
     except Exception as e:
         if os.path.exists(output_file):
             os.unlink(output_file)
@@ -70,11 +71,15 @@ def interactive_feedback(
     if not images_b64:
         return {"interactive_feedback": text}
 
+    # Decode all images once, reuse the bytes for both file saving and Image content
+    decoded_images: list[bytes] = [base64.b64decode(img) for img in images_b64]
+
+    run_id = uuid.uuid4().hex[:8]
     image_paths = []
-    for i, img_b64 in enumerate(images_b64):
-        temp_path = os.path.join(tempfile.gettempdir(), f"mcp_feedback_screenshot_{i}.png")
+    for i, img_bytes in enumerate(decoded_images):
+        temp_path = os.path.join(tempfile.gettempdir(), f"mcp_feedback_{run_id}_{i}.png")
         with open(temp_path, 'wb') as f:
-            f.write(base64.b64decode(img_b64))
+            f.write(img_bytes)
         image_paths.append(temp_path)
 
     feedback_with_paths = text
@@ -82,11 +87,11 @@ def interactive_feedback(
         paths_str = "\n".join(image_paths)
         feedback_with_paths += f"\n\n[Screenshots saved to:\n{paths_str}]"
 
-    contents = [feedback_with_paths]
-    for img_b64 in images_b64:
-        contents.append(Image(data=base64.b64decode(img_b64), format="png"))
+    contents: list = [feedback_with_paths]
+    for img_bytes in decoded_images:
+        contents.append(Image(data=img_bytes, format="png"))
 
     return contents
 
 if __name__ == "__main__":
-    mcp.run(transport="stdio")
+    mcp.run(transport="stdio", log_level="ERROR")

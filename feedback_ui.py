@@ -5,21 +5,20 @@
 import os
 import sys
 import json
-import base64
 import argparse
-from typing import Optional, TypedDict, List
+from typing import TypedDict
 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QLineEdit, QPushButton, QCheckBox, QTextEdit, QGroupBox,
-    QFrame, QScrollArea, QFileDialog, QSizePolicy
+    QLabel, QPushButton, QCheckBox, QTextEdit, QGroupBox,
+    QFrame, QScrollArea, QFileDialog,
 )
-from PySide6.QtCore import Qt, Signal, QObject, QTimer, QSettings, QByteArray, QBuffer, QIODevice
-from PySide6.QtGui import QTextCursor, QIcon, QKeyEvent, QPalette, QColor, QPixmap, QImage
+from PySide6.QtCore import Qt, Signal, QTimer, QSettings, QByteArray, QBuffer, QIODevice
+from PySide6.QtGui import QIcon, QKeyEvent, QPalette, QColor, QPixmap, QImage
 
 class FeedbackResult(TypedDict):
     interactive_feedback: str
-    images: List[str]
+    images: list[str]
 
 def get_dark_mode_palette(app: QApplication):
     darkPalette = app.palette()
@@ -101,7 +100,7 @@ class ScreenshotThumbnail(QWidget):
         self.setFixedWidth(166)
 
 class FeedbackUI(QMainWindow):
-    def __init__(self, prompt: str, predefined_options: Optional[List[str]] = None):
+    def __init__(self, prompt: str, predefined_options: list[str] | None = None):
         super().__init__()
         self.prompt = prompt
         self.predefined_options = predefined_options or []
@@ -111,7 +110,8 @@ class FeedbackUI(QMainWindow):
         self.setWindowTitle("Interactive Feedback MCP")
         script_dir = os.path.dirname(os.path.abspath(__file__))
         icon_path = os.path.join(script_dir, "images", "feedback.png")
-        self.setWindowIcon(QIcon(icon_path))
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
         self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
 
         self.settings = QSettings("InteractiveFeedbackMCP", "InteractiveFeedbackMCP")
@@ -342,7 +342,7 @@ class FeedbackUI(QMainWindow):
 
         return self.feedback_result
 
-def feedback_ui(prompt: str, predefined_options: Optional[List[str]] = None, output_file: Optional[str] = None) -> Optional[FeedbackResult]:
+def feedback_ui(prompt: str, predefined_options: list[str] | None = None, output_file: str | None = None) -> FeedbackResult | None:
     app = QApplication.instance() or QApplication()
     app.setPalette(get_dark_mode_palette(app))
     app.setStyle("Fusion")
