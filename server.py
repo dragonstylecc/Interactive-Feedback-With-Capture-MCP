@@ -5,30 +5,27 @@
 import os
 import sys
 import json
+import base64
 import tempfile
 import subprocess
 
-from typing import Annotated, Dict
+from typing import Dict
 
 from fastmcp import FastMCP
+from fastmcp.utilities.types import Image
 from pydantic import Field
 
 # The log_level is necessary for Cline to work: https://github.com/jlowin/fastmcp/issues/81
 mcp = FastMCP("Interactive Feedback MCP", log_level="ERROR")
 
-def launch_feedback_ui(summary: str, predefinedOptions: list[str] | None = None) -> dict[str, str]:
-    # Create a temporary file for the feedback result
+def launch_feedback_ui(summary: str, predefinedOptions: list[str] | None = None) -> dict:
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
         output_file = tmp.name
 
     try:
-        # Get the path to feedback_ui.py relative to this script
         script_dir = os.path.dirname(os.path.abspath(__file__))
         feedback_ui_path = os.path.join(script_dir, "feedback_ui.py")
 
-        # Run feedback_ui.py as a separate process
-        # NOTE: There appears to be a bug in uv, so we need
-        # to pass a bunch of special flags to make this work
         args = [
             sys.executable,
             "-u",
@@ -49,7 +46,6 @@ def launch_feedback_ui(summary: str, predefinedOptions: list[str] | None = None)
         if result.returncode != 0:
             raise Exception(f"Failed to launch feedback UI: {result.returncode}")
 
-        # Read the result from the temporary file
         with open(output_file, 'r') as f:
             result = json.load(f)
         os.unlink(output_file)
@@ -63,10 +59,34 @@ def launch_feedback_ui(summary: str, predefinedOptions: list[str] | None = None)
 def interactive_feedback(
     message: str = Field(description="The specific question for the user"),
     predefined_options: list = Field(default=None, description="Predefined options for the user to choose from (optional)"),
-) -> Dict[str, str]:
-    """Request interactive feedback from the user"""
+):
+    """Request interactive feedback from the user. Supports text and screenshot responses."""
     predefined_options_list = predefined_options if isinstance(predefined_options, list) else None
-    return launch_feedback_ui(message, predefined_options_list)
+    result = launch_feedback_ui(message, predefined_options_list)
+
+    text = result.get("interactive_feedback", "")
+    images_b64 = result.get("images", [])
+
+    if not images_b64:
+        return {"interactive_feedback": text}
+
+    image_paths = []
+    for i, img_b64 in enumerate(images_b64):
+        temp_path = os.path.join(tempfile.gettempdir(), f"mcp_feedback_screenshot_{i}.png")
+        with open(temp_path, 'wb') as f:
+            f.write(base64.b64decode(img_b64))
+        image_paths.append(temp_path)
+
+    feedback_with_paths = text
+    if image_paths:
+        paths_str = "\n".join(image_paths)
+        feedback_with_paths += f"\n\n[Screenshots saved to:\n{paths_str}]"
+
+    contents = [feedback_with_paths]
+    for img_b64 in images_b64:
+        contents.append(Image(data=base64.b64decode(img_b64), format="png"))
+
+    return contents
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

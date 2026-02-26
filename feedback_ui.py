@@ -5,19 +5,21 @@
 import os
 import sys
 import json
+import base64
 import argparse
 from typing import Optional, TypedDict, List
 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QCheckBox, QTextEdit, QGroupBox,
-    QFrame
+    QFrame, QScrollArea, QFileDialog, QSizePolicy
 )
-from PySide6.QtCore import Qt, Signal, QObject, QTimer, QSettings
-from PySide6.QtGui import QTextCursor, QIcon, QKeyEvent, QPalette, QColor
+from PySide6.QtCore import Qt, Signal, QObject, QTimer, QSettings, QByteArray, QBuffer, QIODevice
+from PySide6.QtGui import QTextCursor, QIcon, QKeyEvent, QPalette, QColor, QPixmap, QImage
 
 class FeedbackResult(TypedDict):
     interactive_feedback: str
+    images: List[str]
 
 def get_dark_mode_palette(app: QApplication):
     darkPalette = app.palette()
@@ -45,51 +47,89 @@ def get_dark_mode_palette(app: QApplication):
     return darkPalette
 
 class FeedbackTextEdit(QTextEdit):
+    image_pasted = Signal(QImage)
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() == Qt.Key_Return and event.modifiers() == Qt.ControlModifier:
-            # Find the parent FeedbackUI instance and call submit
             parent = self.parent()
             while parent and not isinstance(parent, FeedbackUI):
                 parent = parent.parent()
             if parent:
                 parent._submit_feedback()
+        elif event.key() == Qt.Key_V and event.modifiers() == Qt.ControlModifier:
+            clipboard = QApplication.clipboard()
+            if clipboard.mimeData() and clipboard.mimeData().hasImage():
+                image = clipboard.image()
+                if not image.isNull():
+                    self.image_pasted.emit(image)
+                    return
+            super().keyPressEvent(event)
         else:
             super().keyPressEvent(event)
+
+class ScreenshotThumbnail(QWidget):
+    removed = Signal(int)
+
+    def __init__(self, pixmap: QPixmap, index: int, parent=None):
+        super().__init__(parent)
+        self.index = index
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(2)
+
+        thumb_label = QLabel()
+        scaled = pixmap.scaled(150, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        thumb_label.setPixmap(scaled)
+        thumb_label.setAlignment(Qt.AlignCenter)
+        thumb_label.setStyleSheet("border: 1px solid #555; border-radius: 4px; padding: 2px;")
+        layout.addWidget(thumb_label)
+
+        remove_btn = QPushButton("✕")
+        remove_btn.setFixedHeight(22)
+        remove_btn.setStyleSheet(
+            "QPushButton { color: #ff6666; background: transparent; "
+            "border: 1px solid #555; border-radius: 3px; font-size: 11px; }"
+            "QPushButton:hover { background: rgba(255,102,102,0.25); }"
+        )
+        remove_btn.clicked.connect(lambda: self.removed.emit(self.index))
+        layout.addWidget(remove_btn)
+
+        self.setFixedWidth(166)
 
 class FeedbackUI(QMainWindow):
     def __init__(self, prompt: str, predefined_options: Optional[List[str]] = None):
         super().__init__()
         self.prompt = prompt
         self.predefined_options = predefined_options or []
-
         self.feedback_result = None
-        
+        self.screenshots: list[QPixmap] = []
+
         self.setWindowTitle("Interactive Feedback MCP")
         script_dir = os.path.dirname(os.path.abspath(__file__))
         icon_path = os.path.join(script_dir, "images", "feedback.png")
         self.setWindowIcon(QIcon(icon_path))
         self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
-        
+
         self.settings = QSettings("InteractiveFeedbackMCP", "InteractiveFeedbackMCP")
-        
-        # Load general UI settings for the main window (geometry, state)
+
         self.settings.beginGroup("MainWindow_General")
         geometry = self.settings.value("geometry")
         if geometry:
             self.restoreGeometry(geometry)
         else:
-            self.resize(800, 600)
+            self.resize(800, 650)
             screen = QApplication.primaryScreen().geometry()
             x = (screen.width() - 800) // 2
-            y = (screen.height() - 600) // 2
+            y = (screen.height() - 650) // 2
             self.move(x, y)
         state = self.settings.value("windowState")
         if state:
             self.restoreState(state)
-        self.settings.endGroup() # End "MainWindow_General" group
+        self.settings.endGroup()
 
         self._create_ui()
 
@@ -98,92 +138,199 @@ class FeedbackUI(QMainWindow):
         self.setCentralWidget(central_widget)
         layout = QVBoxLayout(central_widget)
 
-        # Feedback section
         self.feedback_group = QGroupBox("Feedback")
         feedback_layout = QVBoxLayout(self.feedback_group)
 
-        # Description label (from self.prompt) - Support multiline
         self.description_label = QLabel(self.prompt)
         self.description_label.setWordWrap(True)
         feedback_layout.addWidget(self.description_label)
 
-        # Add predefined options if any
         self.option_checkboxes = []
         if self.predefined_options and len(self.predefined_options) > 0:
             options_frame = QFrame()
             options_layout = QVBoxLayout(options_frame)
             options_layout.setContentsMargins(0, 10, 0, 10)
-            
+
             for option in self.predefined_options:
                 checkbox = QCheckBox(option)
                 self.option_checkboxes.append(checkbox)
                 options_layout.addWidget(checkbox)
-            
+
             feedback_layout.addWidget(options_frame)
-            
-            # Add a separator
+
             separator = QFrame()
             separator.setFrameShape(QFrame.HLine)
             separator.setFrameShadow(QFrame.Sunken)
             feedback_layout.addWidget(separator)
 
-        # Free-form text feedback
         self.feedback_text = FeedbackTextEdit()
+        self.feedback_text.image_pasted.connect(self._on_image_pasted)
         font_metrics = self.feedback_text.fontMetrics()
         row_height = font_metrics.height()
-        # Calculate height for 5 lines + some padding for margins
-        padding = self.feedback_text.contentsMargins().top() + self.feedback_text.contentsMargins().bottom() + 5 # 5 is extra vertical padding
+        padding = self.feedback_text.contentsMargins().top() + self.feedback_text.contentsMargins().bottom() + 5
         self.feedback_text.setMinimumHeight(5 * row_height + padding)
+        self.feedback_text.setPlaceholderText("Enter your feedback here (Ctrl+Enter to submit, Ctrl+V to paste screenshot)")
+        feedback_layout.addWidget(self.feedback_text)
 
-        self.feedback_text.setPlaceholderText("Enter your feedback here (Ctrl+Enter to submit)")
+        # --- Screenshot section ---
+        screenshot_section = QFrame()
+        screenshot_main_layout = QVBoxLayout(screenshot_section)
+        screenshot_main_layout.setContentsMargins(0, 5, 0, 5)
+
+        btn_layout = QHBoxLayout()
+        capture_btn = QPushButton("📷 Capture Screen")
+        capture_btn.setToolTip("Minimize this window and capture the full screen")
+        capture_btn.clicked.connect(self._capture_screen)
+        paste_btn = QPushButton("📋 Paste Clipboard")
+        paste_btn.setToolTip("Paste an image from clipboard (you can also use Ctrl+V)")
+        paste_btn.clicked.connect(self._paste_from_clipboard)
+        browse_btn = QPushButton("📁 Browse...")
+        browse_btn.setToolTip("Browse for image files")
+        browse_btn.clicked.connect(self._browse_image)
+        btn_layout.addWidget(capture_btn)
+        btn_layout.addWidget(paste_btn)
+        btn_layout.addWidget(browse_btn)
+        btn_layout.addStretch()
+        screenshot_main_layout.addLayout(btn_layout)
+
+        self.screenshot_count_label = QLabel("")
+        self.screenshot_count_label.setStyleSheet("color: #aaa; font-size: 12px;")
+        self.screenshot_count_label.setVisible(False)
+        screenshot_main_layout.addWidget(self.screenshot_count_label)
+
+        self.screenshots_scroll = QScrollArea()
+        self.screenshots_scroll.setWidgetResizable(True)
+        self.screenshots_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.screenshots_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.screenshots_scroll.setFixedHeight(140)
+        self.screenshots_scroll.setVisible(False)
+        self.screenshots_scroll.setStyleSheet("QScrollArea { border: 1px solid #555; border-radius: 4px; }")
+
+        self.thumbnails_container = QWidget()
+        self.thumbnails_layout = QHBoxLayout(self.thumbnails_container)
+        self.thumbnails_layout.setAlignment(Qt.AlignLeft)
+        self.thumbnails_layout.setContentsMargins(4, 4, 4, 4)
+        self.screenshots_scroll.setWidget(self.thumbnails_container)
+
+        screenshot_main_layout.addWidget(self.screenshots_scroll)
+        feedback_layout.addWidget(screenshot_section)
+
         submit_button = QPushButton("&Send Feedback")
         submit_button.clicked.connect(self._submit_feedback)
-
-        feedback_layout.addWidget(self.feedback_text)
         feedback_layout.addWidget(submit_button)
 
-        # Set minimum height for feedback_group
-        self.feedback_group.setMinimumHeight(self.description_label.sizeHint().height() + self.feedback_text.minimumHeight() + submit_button.sizeHint().height() + feedback_layout.spacing() * 2 + feedback_layout.contentsMargins().top() + feedback_layout.contentsMargins().bottom() + 10)
-
-        # Add widgets
         layout.addWidget(self.feedback_group)
+
+    # --- Screenshot methods ---
+
+    def _capture_screen(self):
+        self.showMinimized()
+        QTimer.singleShot(600, self._do_capture_screen)
+
+    def _do_capture_screen(self):
+        screen = QApplication.primaryScreen()
+        if screen:
+            pixmap = screen.grabWindow(0)
+            if not pixmap.isNull():
+                self._add_screenshot(pixmap)
+        self.showNormal()
+        self.activateWindow()
+        self.raise_()
+
+    def _paste_from_clipboard(self):
+        clipboard = QApplication.clipboard()
+        mime = clipboard.mimeData()
+        if mime and mime.hasImage():
+            image = clipboard.image()
+            if not image.isNull():
+                self._add_screenshot(QPixmap.fromImage(image))
+
+    def _on_image_pasted(self, image: QImage):
+        pixmap = QPixmap.fromImage(image)
+        if not pixmap.isNull():
+            self._add_screenshot(pixmap)
+
+    def _browse_image(self):
+        file_paths, _ = QFileDialog.getOpenFileNames(
+            self, "Select Images", "",
+            "Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp);;All Files (*)"
+        )
+        for path in file_paths:
+            pixmap = QPixmap(path)
+            if not pixmap.isNull():
+                self._add_screenshot(pixmap)
+
+    def _add_screenshot(self, pixmap: QPixmap):
+        max_size = 1600
+        if pixmap.width() > max_size or pixmap.height() > max_size:
+            pixmap = pixmap.scaled(max_size, max_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.screenshots.append(pixmap)
+        self._update_thumbnails()
+
+    def _remove_screenshot(self, index: int):
+        if 0 <= index < len(self.screenshots):
+            self.screenshots.pop(index)
+            self._update_thumbnails()
+
+    def _update_thumbnails(self):
+        while self.thumbnails_layout.count():
+            item = self.thumbnails_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+
+        for i, pixmap in enumerate(self.screenshots):
+            thumb = ScreenshotThumbnail(pixmap, i)
+            thumb.removed.connect(self._remove_screenshot)
+            self.thumbnails_layout.addWidget(thumb)
+
+        has_screenshots = len(self.screenshots) > 0
+        self.screenshots_scroll.setVisible(has_screenshots)
+        self.screenshot_count_label.setVisible(has_screenshots)
+        if has_screenshots:
+            self.screenshot_count_label.setText(f"{len(self.screenshots)} screenshot(s) attached")
+
+    @staticmethod
+    def _pixmap_to_base64(pixmap: QPixmap) -> str:
+        byte_array = QByteArray()
+        buffer = QBuffer(byte_array)
+        buffer.open(QIODevice.WriteOnly)
+        pixmap.save(buffer, "PNG")
+        buffer.close()
+        return byte_array.toBase64().data().decode('ascii')
+
+    # --- Submit / Close ---
 
     def _submit_feedback(self):
         feedback_text = self.feedback_text.toPlainText().strip()
         selected_options = []
-        
-        # Get selected predefined options if any
+
         if self.option_checkboxes:
             for i, checkbox in enumerate(self.option_checkboxes):
                 if checkbox.isChecked():
                     selected_options.append(self.predefined_options[i])
-        
-        # Combine selected options and feedback text
+
         final_feedback_parts = []
-        
-        # Add selected options
         if selected_options:
             final_feedback_parts.append("; ".join(selected_options))
-        
-        # Add user's text feedback
         if feedback_text:
             final_feedback_parts.append(feedback_text)
-            
-        # Join with a newline if both parts exist
+
         final_feedback = "\n\n".join(final_feedback_parts)
-            
+
+        images_b64 = [self._pixmap_to_base64(p) for p in self.screenshots]
+
         self.feedback_result = FeedbackResult(
             interactive_feedback=final_feedback,
+            images=images_b64,
         )
         self.close()
 
     def closeEvent(self, event):
-        # Save general UI settings for the main window (geometry, state)
         self.settings.beginGroup("MainWindow_General")
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("windowState", self.saveState())
         self.settings.endGroup()
-
         super().closeEvent(event)
 
     def run(self) -> FeedbackResult:
@@ -191,7 +338,7 @@ class FeedbackUI(QMainWindow):
         QApplication.instance().exec()
 
         if not self.feedback_result:
-            return FeedbackResult(interactive_feedback="")
+            return FeedbackResult(interactive_feedback="", images=[])
 
         return self.feedback_result
 
@@ -203,9 +350,7 @@ def feedback_ui(prompt: str, predefined_options: Optional[List[str]] = None, out
     result = ui.run()
 
     if output_file and result:
-        # Ensure the directory exists
         os.makedirs(os.path.dirname(output_file) if os.path.dirname(output_file) else ".", exist_ok=True)
-        # Save the result to the output file
         with open(output_file, "w") as f:
             json.dump(result, f)
         return None
@@ -220,8 +365,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     predefined_options = [opt for opt in args.predefined_options.split("|||") if opt] if args.predefined_options else None
-    
+
     result = feedback_ui(args.prompt, predefined_options, args.output_file)
     if result:
         print(f"\nFeedback received:\n{result['interactive_feedback']}")
+        if result.get('images'):
+            print(f"Screenshots attached: {len(result['images'])}")
     sys.exit(0)
