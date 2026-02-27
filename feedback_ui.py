@@ -11,7 +11,7 @@ from typing import TypedDict
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QCheckBox, QTextEdit, QGroupBox,
-    QFrame, QScrollArea, QFileDialog,
+    QFrame, QScrollArea, QFileDialog, QSizePolicy,
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QSettings, QByteArray, QBuffer, QIODevice
 from PySide6.QtGui import QIcon, QKeyEvent, QPalette, QColor, QPixmap, QImage
@@ -141,9 +141,37 @@ class FeedbackUI(QMainWindow):
         self.feedback_group = QGroupBox("Feedback")
         feedback_layout = QVBoxLayout(self.feedback_group)
 
-        self.description_label = QLabel(self.prompt)
-        self.description_label.setWordWrap(True)
-        feedback_layout.addWidget(self.description_label)
+        prompt_header = QHBoxLayout()
+        prompt_title = QLabel("Message:")
+        prompt_title.setStyleSheet("font-weight: bold; color: #ccc; font-size: 12px;")
+        prompt_header.addWidget(prompt_title)
+        prompt_header.addStretch()
+        copy_btn = QPushButton("📋 Copy")
+        copy_btn.setFixedHeight(24)
+        copy_btn.setStyleSheet(
+            "QPushButton { color: #aaa; background: transparent; "
+            "border: 1px solid #555; border-radius: 3px; font-size: 11px; padding: 0 8px; }"
+            "QPushButton:hover { background: rgba(42,130,218,0.25); color: #fff; }"
+        )
+        copy_btn.setToolTip("Copy message to clipboard")
+        copy_btn.clicked.connect(lambda: QApplication.clipboard().setText(self.prompt))
+        prompt_header.addWidget(copy_btn)
+        feedback_layout.addLayout(prompt_header)
+
+        self.description_text = QTextEdit()
+        self.description_text.setPlainText(self.prompt)
+        self.description_text.setReadOnly(True)
+        self.description_text.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.description_text.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.description_text.setStyleSheet(
+            "QTextEdit { background: #2a2a2a; border: 1px solid #555; "
+            "border-radius: 4px; padding: 8px; color: #e0e0e0; font-size: 13px; }"
+        )
+        self.description_text.document().setDocumentMargin(4)
+        font_h = self.description_text.fontMetrics().height()
+        self.description_text.setMinimumHeight(5 * font_h + 20)
+        self.description_text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        feedback_layout.addWidget(self.description_text, stretch=3)
 
         self.option_checkboxes = []
         if self.predefined_options and len(self.predefined_options) > 0:
@@ -170,7 +198,7 @@ class FeedbackUI(QMainWindow):
         padding = self.feedback_text.contentsMargins().top() + self.feedback_text.contentsMargins().bottom() + 5
         self.feedback_text.setMinimumHeight(5 * row_height + padding)
         self.feedback_text.setPlaceholderText("Enter your feedback here (Ctrl+Enter to submit, Ctrl+V to paste screenshot)")
-        feedback_layout.addWidget(self.feedback_text)
+        feedback_layout.addWidget(self.feedback_text, stretch=1)
 
         # --- Screenshot section ---
         screenshot_section = QFrame()
