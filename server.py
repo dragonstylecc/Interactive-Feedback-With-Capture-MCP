@@ -45,18 +45,30 @@ async def launch_feedback_ui(
             stdin=asyncio.subprocess.DEVNULL,
         )
 
-        elapsed = 0
-        while process.returncode is None:
-            try:
-                await asyncio.wait_for(process.wait(), timeout=HEARTBEAT_INTERVAL)
-            except asyncio.TimeoutError:
-                elapsed += HEARTBEAT_INTERVAL
-                if ctx:
-                    await ctx.report_progress(
-                        progress=elapsed,
-                        total=elapsed + 600,
-                    )
-                    await ctx.info(f"Waiting for user feedback... ({elapsed}s)")
+        try:
+            wait_task = asyncio.ensure_future(process.wait())
+            elapsed = 0
+            while not wait_task.done():
+                await asyncio.sleep(HEARTBEAT_INTERVAL)
+                if not wait_task.done() and ctx:
+                    elapsed += HEARTBEAT_INTERVAL
+                    try:
+                        await ctx.report_progress(
+                            progress=elapsed,
+                            total=elapsed + 600,
+                        )
+                        await ctx.info(f"Waiting for user feedback... ({elapsed}s)")
+                    except Exception:
+                        pass
+            await wait_task
+        except (asyncio.CancelledError, Exception):
+            if process.returncode is None:
+                process.terminate()
+                try:
+                    await asyncio.wait_for(process.wait(), timeout=5)
+                except asyncio.TimeoutError:
+                    process.kill()
+            raise
 
         if process.returncode != 0:
             stderr_bytes = await process.stderr.read()
