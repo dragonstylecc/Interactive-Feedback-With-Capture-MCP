@@ -24,6 +24,10 @@
 - **🖱️ 文字可选** — 提示内容支持鼠标选择和 `Ctrl+C` 复制
 - **📜 滚动显示** — 长文本自动出现垂直滚动条，不再因内容过多而显示不全
 
+## 💓 心跳保活机制
+
+反馈窗口打开期间，服务器每 15 秒自动向 MCP 客户端发送进度报告，防止因用户长时间未操作导致连接超时断开。该机制基于 MCP 协议的 `report_progress` 通知，对用户完全透明。
+
 ## 🖼️ 示例
 
 ![Interactive Feedback With Capture](https://raw.githubusercontent.com/dragonstylecc/Interactive-Feedback-With-Capture-MCP/refs/heads/main/.github/example.png)

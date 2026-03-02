@@ -7,16 +7,22 @@ import sys
 import json
 import base64
 import tempfile
-import subprocess
+import asyncio
 import uuid
 
-from fastmcp import FastMCP
+from fastmcp import FastMCP, Context
 from fastmcp.utilities.types import Image
 from pydantic import Field
 
 mcp = FastMCP("Interactive Feedback MCP")
 
-def launch_feedback_ui(summary: str, predefined_options: list[str] | None = None) -> dict:
+HEARTBEAT_INTERVAL = 15
+
+async def launch_feedback_ui(
+    summary: str,
+    predefined_options: list[str] | None = None,
+    ctx: Context | None = None,
+) -> dict:
     with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
         output_file = tmp.name
 
@@ -32,18 +38,31 @@ def launch_feedback_ui(summary: str, predefined_options: list[str] | None = None
             "--output-file", output_file,
             "--predefined-options", "|||".join(predefined_options) if predefined_options else ""
         ]
-        result = subprocess.run(
-            args,
-            check=False,
-            shell=False,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            stdin=subprocess.DEVNULL,
+        process = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            stdin=asyncio.subprocess.DEVNULL,
         )
-        if result.returncode != 0:
-            stderr_text = result.stderr.decode("utf-8", errors="replace").strip()
+
+        elapsed = 0
+        while process.returncode is None:
+            try:
+                await asyncio.wait_for(process.wait(), timeout=HEARTBEAT_INTERVAL)
+            except asyncio.TimeoutError:
+                elapsed += HEARTBEAT_INTERVAL
+                if ctx:
+                    await ctx.report_progress(
+                        progress=elapsed,
+                        total=elapsed + 600,
+                    )
+                    await ctx.info(f"Waiting for user feedback... ({elapsed}s)")
+
+        if process.returncode != 0:
+            stderr_bytes = await process.stderr.read()
+            stderr_text = stderr_bytes.decode("utf-8", errors="replace").strip()
             raise Exception(
-                f"Feedback UI exited with code {result.returncode}"
+                f"Feedback UI exited with code {process.returncode}"
                 + (f": {stderr_text}" if stderr_text else "")
             )
 
@@ -57,13 +76,14 @@ def launch_feedback_ui(summary: str, predefined_options: list[str] | None = None
         raise e
 
 @mcp.tool()
-def interactive_feedback(
+async def interactive_feedback(
     message: str = Field(description="The specific question for the user"),
     predefined_options: list = Field(default=None, description="Predefined options for the user to choose from (optional)"),
+    ctx: Context = None,
 ):
     """Request interactive feedback from the user. Supports text and screenshot responses."""
     predefined_options_list = predefined_options if isinstance(predefined_options, list) else None
-    result = launch_feedback_ui(message, predefined_options_list)
+    result = await launch_feedback_ui(message, predefined_options_list, ctx)
 
     text = result.get("interactive_feedback", "")
     images_b64 = result.get("images", [])
