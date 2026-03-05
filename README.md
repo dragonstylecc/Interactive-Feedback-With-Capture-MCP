@@ -1,3 +1,5 @@
+**中文** | [English](README_EN.md)
+
 # 🗣️ Interactive Feedback With Capture MCP
 
 基于 [Interactive Feedback MCP](https://github.com/poliva/interactive-feedback-mcp) 的增强版本，新增**截图反馈**功能。

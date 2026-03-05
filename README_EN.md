@@ -1,0 +1,147 @@
+[中文](README.md) | **English**
+
+# 🗣️ Interactive Feedback With Capture MCP
+
+An enhanced version of [Interactive Feedback MCP](https://github.com/poliva/interactive-feedback-mcp) with **screenshot feedback** support.
+
+A simple [MCP Server](https://modelcontextprotocol.io/) for human-in-the-loop workflows in AI-assisted development tools like [Cursor](https://www.cursor.com), [Cline](https://cline.bot), and [Windsurf](https://windsurf.com). Supports both text feedback and **screenshot feedback**, allowing AI to directly "see" your screen content.
+
+> **Note:** This server is designed to run locally, requiring direct access to the user's operating system for displaying notification windows and capturing screenshots.
+
+## ✨ Screenshot Feedback
+
+Built on top of the original text-only feedback, the following screenshot capabilities are added:
+
+- **📷 Full Screen Capture** — Click to auto-minimize the feedback window, capture the full screen, then restore
+- **📋 Clipboard Paste** — Paste via button or `Ctrl+V` in the text box (works with `Win+Shift+S` region capture)
+- **📁 Browse Images** — Select image files locally (PNG, JPG, BMP, GIF, WebP)
+- **🖼️ Thumbnail Preview** — Attached screenshots show thumbnail previews, individually removable
+- **📐 Auto Compression** — Images larger than 1600px are automatically scaled down proportionally
+
+Screenshots are returned to AI via MCP Image content type, allowing AI to directly view the screenshot content.
+
+## ✨ Enhanced Message Display
+
+- **📋 One-Click Copy** — Copy button at the top of the message area to copy full content to clipboard
+- **🖱️ Text Selectable** — Message content supports mouse selection and `Ctrl+C` copy
+- **📜 Scrollable** — Long text automatically shows a vertical scrollbar
+
+## ⏱️ Timeout & Connection Management
+
+### Timeout Configuration
+
+The feedback window waits for user input and may last a long time. The `timeout` in MCP configuration is a **hard limit** — exceeding it will cause the tool call to fail.
+
+**Recommend setting `timeout` to a sufficiently large value** (e.g., 3600 seconds = 1 hour):
+
+```json
+"timeout": 3600
+```
+
+### Heartbeat & Orphaned Window Cleanup
+
+The server sends progress updates via `report_progress` every **30 seconds** while waiting for user input:
+- **Status Monitoring** — Observe wait duration for debugging
+- **Connection Detection** — After **3 consecutive** heartbeat failures (~90 seconds), the client is assumed disconnected and the **orphaned feedback window is automatically closed**
+- **Auto Retry** — After closing an orphaned window, automatically retries opening the feedback window once
+- **Fallback** — If retry fails, returns an error message prompting the Agent to switch to the built-in `AskQuestion` tool
+
+### Multi-Agent Parallel Support
+
+When multiple Agents run in parallel within the same project, each Agent's feedback window is independently managed:
+- Window titles display dynamic numbering (`#1`, `#2`...) to distinguish different Agent requests
+- Numbers are automatically assigned the lowest available value and released when the window closes
+- Windows do not interfere with each other; users can handle multiple feedback requests simultaneously
+
+## 🖼️ Example
+
+![Interactive Feedback With Capture](https://raw.githubusercontent.com/dragonstylecc/Interactive-Feedback-With-Capture-MCP/refs/heads/main/.github/example.png)
+
+## 💡 Why Use It?
+
+In environments like Cursor, every prompt sent to the LLM counts as a separate request toward your monthly quota (e.g., 500 premium requests). When iterating on vague instructions or correcting misunderstood outputs, each follow-up clarification triggers a full new request — very inefficient.
+
+This MCP server provides a solution: it allows the model to pause and request clarification before completing its response. The model triggers a tool call (`interactive_feedback`) to open an interactive feedback window where you can provide more details or request changes — while the model continues the same request session.
+
+Since tool calls don't count as separate premium interactions, you can loop through multiple feedback cycles without consuming additional requests.
+
+- **💰 Reduce API Calls:** Avoid wasting expensive API calls on guesswork
+- **✅ Fewer Errors:** Clarifying before acting means less broken code
+- **⏱️ Faster Iteration:** Quick confirmation beats debugging wrong guesses
+- **🎮 Better Collaboration:** Turn one-way instructions into a dialogue, keeping you in control
+- **📸 Visual Communication:** Screenshots let AI see the problem directly, more intuitive than text descriptions
+
+## 🛠️ Tools
+
+This server exposes the following tool via the MCP protocol:
+
+- `interactive_feedback`: Ask the user a question and return the answer. Supports predefined options and **screenshot attachments**.
+
+## 📦 Installation
+
+1.  **Prerequisites:**
+    *   Python 3.11 or newer
+    *   [uv](https://github.com/astral-sh/uv) (Python package manager):
+        *   Windows: `pip install uv`
+        *   Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+        *   macOS: `brew install uv`
+2.  **Get the code:**
+    ```bash
+    git clone https://github.com/dragonstylecc/Interactive-Feedback-With-Capture-MCP.git
+    ```
+
+## ⚙️ Configuration
+
+1. Add the following configuration to `claude_desktop_config.json` (Claude Desktop) or `mcp.json` (Cursor):
+
+**Replace `/path/to/interactive-feedback-mcp` with the actual path where you cloned the repository.**
+
+```json
+{
+  "mcpServers": {
+    "interactive-feedback": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/path/to/interactive-feedback-mcp",
+        "run",
+        "server.py"
+      ],
+      "timeout": 3600,
+      "autoApprove": [
+        "interactive_feedback"
+      ]
+    }
+  }
+}
+```
+
+2. Add the following to your AI assistant's custom rules (Cursor Settings > Rules > User Rules):
+
+> If a request or instruction is unclear, use the interactive_feedback tool to ask the user clarifying questions before proceeding. Do not make assumptions.
+> Provide predefined options to the user via the interactive_feedback MCP tool whenever possible to facilitate quick decision-making.
+> Each time you are about to complete a user request, call the interactive_feedback tool to ask for user feedback before finalizing the process. If the feedback is empty, you may end the request and must not call the tool in a loop. If the tool call fails, use the built-in AskQuestion tool.
+
+This ensures the AI assistant always uses this MCP server to request user feedback when prompts are unclear and before marking tasks as completed.
+
+## 📸 Screenshot Usage Guide
+
+Three screenshot buttons are available at the bottom of the feedback window:
+
+| Button | Function | Description |
+|--------|----------|-------------|
+| 📷 Capture Screen | Full screen capture | Auto-minimizes window, captures entire screen, then restores |
+| 📋 Paste Clipboard | Paste clipboard | Paste copied screenshots (works with `Win+Shift+S` region capture) |
+| 📁 Browse... | Browse files | Select image files from local filesystem |
+
+**Shortcut:** Press `Ctrl+V` in the text input box to paste clipboard images directly.
+
+Screenshots are previewed as thumbnails in the window. Click the ✕ button to remove individual screenshots. When submitting feedback, screenshots are sent to AI via the MCP protocol's Image content type, allowing AI to directly view the screenshot content.
+
+## 🙏 Acknowledgements
+
+This project is based on the following excellent projects:
+
+- Original project developed by Fábio Ferreira ([@fabiomlferreira](https://x.com/fabiomlferreira))
+- Enhanced by Pau Oliva ([@pof](https://x.com/pof)), inspired by Tommy Tong's [interactive-mcp](https://github.com/ttommyth/interactive-mcp)
+- Screenshot feedback added by [dragonstylecc](https://github.com/dragonstylecc)
