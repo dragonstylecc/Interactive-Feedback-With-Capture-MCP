@@ -13,7 +13,7 @@ A simple [MCP Server](https://modelcontextprotocol.io/) for human-in-the-loop wo
 Built on top of the original text-only feedback, the following screenshot capabilities are added:
 
 - **📷 Full Screen Capture** — Click to auto-minimize the feedback window, capture the full screen, then restore
-- **📋 Clipboard Paste** — Paste via button or `Ctrl+V` in the text box (works with `Win+Shift+S` region capture)
+- **📋 Clipboard Paste** — Paste via button or `Ctrl+V` in the text box (Windows: `Win+Shift+S`, Linux: system screenshot tool, macOS: `Cmd+Shift+4`)
 - **📁 Browse Images** — Select image files locally (PNG, JPG, BMP, GIF, WebP)
 - **🖼️ Thumbnail Preview** — Attached screenshots show thumbnail previews, individually removable
 - **📐 Auto Compression** — Images larger than 1600px are automatically scaled down proportionally
@@ -52,6 +52,20 @@ When multiple Agents run in parallel within the same project, each Agent's feedb
 - Window titles display dynamic numbering (`#1`, `#2`...) to distinguish different Agent requests
 - Numbers are automatically assigned the lowest available value and released when the window closes
 - Windows do not interfere with each other; users can handle multiple feedback requests simultaneously
+
+## 🖥️ Platform Support
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| Windows | ✅ Fully supported | Recommended |
+| macOS | ✅ Fully supported | — |
+| Linux (X11) | ✅ Fully supported | Requires desktop environment |
+| Linux (Wayland) | ⚠️ Partial support | Full screen capture may be restricted by security policies |
+
+**Linux Notes:**
+- A **graphical desktop environment** (GNOME, KDE, etc.) is required — headless servers cannot display the feedback window
+- Under Wayland, `grabWindow` full-screen capture may be limited; use clipboard paste as an alternative
+- Screenshot shortcuts vary by desktop environment (e.g., GNOME uses `PrtSc`, KDE uses `Spectacle`); capture a region and paste it into the feedback window via clipboard
 
 ## 🖼️ Example
 
@@ -131,7 +145,7 @@ Three screenshot buttons are available at the bottom of the feedback window:
 | Button | Function | Description |
 |--------|----------|-------------|
 | 📷 Capture Screen | Full screen capture | Auto-minimizes window, captures entire screen, then restores |
-| 📋 Paste Clipboard | Paste clipboard | Paste copied screenshots (works with `Win+Shift+S` region capture) |
+| 📋 Paste Clipboard | Paste clipboard | Paste copied screenshots (Windows: `Win+Shift+S`, Linux: system screenshot tool, macOS: `Cmd+Shift+4`) |
 | 📁 Browse... | Browse files | Select image files from local filesystem |
 
 **Shortcut:** Press `Ctrl+V` in the text input box to paste clipboard images directly.
