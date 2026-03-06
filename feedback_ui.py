@@ -6,6 +6,7 @@ import os
 import sys
 import json
 import argparse
+import platform
 from typing import TypedDict
 
 from PySide6.QtWidgets import (
@@ -125,16 +126,43 @@ class FeedbackUI(QMainWindow):
             self.restoreGeometry(geometry)
         else:
             self.resize(800, 650)
-            screen = QApplication.primaryScreen().geometry()
-            x = (screen.width() - 800) // 2
-            y = (screen.height() - 650) // 2
-            self.move(x, y)
         state = self.settings.value("windowState")
         if state:
             self.restoreState(state)
         self.settings.endGroup()
 
+        self._ensure_visible_on_screen()
         self._create_ui()
+
+    def _ensure_visible_on_screen(self):
+        """Ensure the window is within visible screen bounds and not minimized."""
+        available = QApplication.primaryScreen().availableGeometry()
+        geo = self.geometry()
+
+        if (geo.right() < available.left() + 50
+                or geo.left() > available.right() - 50
+                or geo.bottom() < available.top() + 50
+                or geo.top() > available.bottom() - 50
+                or geo.width() < 200 or geo.height() < 200):
+            self.resize(800, 650)
+            x = available.x() + (available.width() - 800) // 2
+            y = available.y() + (available.height() - 650) // 2
+            self.move(x, y)
+
+    def _force_foreground(self):
+        """Force the window to the foreground, bypassing Windows focus-stealing prevention."""
+        self.setWindowState(self.windowState() & ~Qt.WindowMinimized)
+        self.showNormal()
+        self.activateWindow()
+        self.raise_()
+
+        if platform.system() == "Windows":
+            try:
+                import ctypes
+                hwnd = int(self.winId())
+                ctypes.windll.user32.SetForegroundWindow(hwnd)
+            except Exception:
+                pass
 
     def _create_ui(self):
         central_widget = QWidget()
@@ -365,7 +393,9 @@ class FeedbackUI(QMainWindow):
         super().closeEvent(event)
 
     def run(self) -> FeedbackResult:
-        self.show()
+        self._force_foreground()
+        QTimer.singleShot(100, self._force_foreground)
+        QTimer.singleShot(500, self._force_foreground)
         QApplication.instance().exec()
 
         if not self.feedback_result:
