@@ -10,15 +10,78 @@ import tempfile
 import asyncio
 import uuid
 
+if sys.platform == "win32":
+    import msvcrt
+else:
+    import fcntl
+
 from fastmcp import FastMCP, Context
 from fastmcp.utilities.types import Image
 from pydantic import Field
 
 mcp = FastMCP("Interactive Feedback MCP")
 
-HEARTBEAT_INTERVAL = 30
+POLL_INTERVAL = 0.5
 MAX_HEARTBEAT_FAILURES = 3
-_active_windows: set[int] = set()
+SOFT_TIMEOUT = 3500
+_LOCK_DIR = os.path.join(tempfile.gettempdir(), "mcp_feedback_windows")
+_LOG_PATH = os.path.join(tempfile.gettempdir(), "mcp_feedback_server.log")
+
+
+def _slog(msg: str):
+    """Append a timestamped line to the server log file."""
+    import datetime
+    ts = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
+    try:
+        with open(_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(f"[{ts}] {msg}\n")
+    except Exception:
+        pass
+
+
+def _adaptive_heartbeat_interval(elapsed: float) -> float:
+    """Reduce heartbeat frequency for long waits to avoid message noise."""
+    if elapsed < 600:
+        return 10
+    elif elapsed < 3600:
+        return 60
+    return 300
+
+
+def _acquire_window_id() -> tuple[int, object]:
+    """Acquire a globally unique window ID using file locks (cross-process safe)."""
+    os.makedirs(_LOCK_DIR, exist_ok=True)
+    window_id = 1
+    while True:
+        lock_path = os.path.join(_LOCK_DIR, f"window_{window_id}.lock")
+        fd = open(lock_path, "w")
+        try:
+            if sys.platform == "win32":
+                msvcrt.locking(fd.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fd.write(str(os.getpid()))
+            fd.flush()
+            return window_id, fd
+        except (IOError, OSError):
+            fd.close()
+            window_id += 1
+
+
+def _release_window_id(fd):
+    """Release a window ID lock."""
+    try:
+        lock_path = fd.name
+        if sys.platform == "win32":
+            try:
+                fd.seek(0)
+                msvcrt.locking(fd.fileno(), msvcrt.LK_UNLCK, 1)
+            except (IOError, OSError):
+                pass
+        fd.close()
+        os.unlink(lock_path)
+    except (OSError, AttributeError):
+        pass
 
 
 async def launch_feedback_ui(
@@ -52,21 +115,35 @@ async def launch_feedback_ui(
 
         try:
             wait_task = asyncio.ensure_future(process.wait())
-            elapsed = 0
+            elapsed = 0.0
+            last_heartbeat = 0.0
             heartbeat_failures = 0
             while not wait_task.done():
-                await asyncio.sleep(HEARTBEAT_INTERVAL)
-                if not wait_task.done() and ctx:
-                    elapsed += HEARTBEAT_INTERVAL
+                await asyncio.sleep(POLL_INTERVAL)
+                elapsed += POLL_INTERVAL
+
+                if elapsed >= SOFT_TIMEOUT and process.returncode is None:
+                    _slog(f"SOFT_TIMEOUT reached at {elapsed:.0f}s, terminating UI")
+                    process.terminate()
+                    try:
+                        await asyncio.wait_for(process.wait(), timeout=5)
+                    except asyncio.TimeoutError:
+                        process.kill()
+                    return {"interactive_feedback": "[心跳] 等待超时，请重新调用 interactive_feedback 继续对话。", "images": []}
+
+                hb_interval = _adaptive_heartbeat_interval(elapsed)
+                if not wait_task.done() and ctx and (elapsed - last_heartbeat) >= hb_interval:
+                    last_heartbeat = elapsed
                     try:
                         await ctx.report_progress(
                             progress=elapsed,
                             total=elapsed + 600,
                         )
-                        await ctx.info(f"Waiting for user feedback... ({elapsed}s)")
+                        await ctx.info(f"Waiting for user feedback... ({elapsed:.0f}s)")
                         heartbeat_failures = 0
                     except Exception:
                         heartbeat_failures += 1
+                        _slog(f"Heartbeat failed ({heartbeat_failures}/{MAX_HEARTBEAT_FAILURES})")
                         if heartbeat_failures >= MAX_HEARTBEAT_FAILURES:
                             if process.returncode is None:
                                 process.terminate()
@@ -110,23 +187,24 @@ async def interactive_feedback(
     ctx: Context = None,
 ):
     """Request interactive feedback from the user. Supports text and screenshot responses."""
-    window_id = 1
-    while window_id in _active_windows:
-        window_id += 1
-    _active_windows.add(window_id)
+    window_id, lock_fd = _acquire_window_id()
+    _slog(f"interactive_feedback called, window_id={window_id}")
 
     predefined_options_list = predefined_options if isinstance(predefined_options, list) else None
     max_attempts = 2
     last_error = None
     for attempt in range(max_attempts):
         try:
+            _slog(f"Attempt {attempt+1}/{max_attempts} to launch UI")
             result = await launch_feedback_ui(message, predefined_options_list, ctx, window_id=window_id)
+            _slog(f"UI returned successfully")
             break
         except Exception as e:
             last_error = e
+            _slog(f"Attempt {attempt+1} failed: {e}")
             if attempt < max_attempts - 1:
                 continue
-            _active_windows.discard(window_id)
+            _release_window_id(lock_fd)
             return {
                 "interactive_feedback": (
                     f"[Feedback UI failed after {max_attempts} attempts: {last_error}. "
@@ -134,7 +212,7 @@ async def interactive_feedback(
                 )
             }
 
-    _active_windows.discard(window_id)
+    _release_window_id(lock_fd)
 
     text = result.get("interactive_feedback", "")
     images_b64 = result.get("images", [])

@@ -12,14 +12,23 @@ from typing import TypedDict
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QCheckBox, QTextEdit, QGroupBox,
-    QFrame, QScrollArea, QFileDialog, QSizePolicy,
+    QFrame, QScrollArea, QFileDialog, QSizePolicy, QDialog, QMenu,
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QSettings, QByteArray, QBuffer, QIODevice
-from PySide6.QtGui import QIcon, QKeyEvent, QPalette, QColor, QPixmap, QImage
+from PySide6.QtGui import QIcon, QKeyEvent, QPalette, QColor, QPixmap, QImage, QAction
 
 class FeedbackResult(TypedDict):
     interactive_feedback: str
     images: list[str]
+
+
+def _read_local_version() -> str:
+    version_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "VERSION")
+    try:
+        with open(version_file, "r") as f:
+            return f.read().strip()
+    except Exception:
+        return "unknown"
 
 def get_dark_mode_palette(app: QApplication):
     darkPalette = app.palette()
@@ -70,12 +79,100 @@ class FeedbackTextEdit(QTextEdit):
         else:
             super().keyPressEvent(event)
 
+class SettingsDialog(QDialog):
+    """Settings dialog for managing quick replies and default toggles."""
+    def __init__(self, settings: QSettings, parent=None):
+        super().__init__(parent)
+        self.settings = settings
+        self.setWindowTitle("Settings")
+        self.setMinimumWidth(450)
+        self.setMinimumHeight(400)
+        layout = QVBoxLayout(self)
+
+        # --- Default toggles ---
+        toggles_group = QGroupBox("Default Toggles")
+        toggles_layout = QVBoxLayout(toggles_group)
+        self.default_chinese = QCheckBox("使用中文 (default on)")
+        self.default_chinese.setChecked(settings.value("use_chinese", True, type=bool))
+        toggles_layout.addWidget(self.default_chinese)
+        self.default_rules = QCheckBox("重新读取Rules (default off)")
+        self.default_rules.setChecked(settings.value("reload_rules", False, type=bool))
+        toggles_layout.addWidget(self.default_rules)
+        layout.addWidget(toggles_group)
+
+        # --- Quick replies ---
+        replies_group = QGroupBox("Quick Replies")
+        replies_layout = QVBoxLayout(replies_group)
+        self.replies_list = QTextEdit()
+        self.replies_list.setPlaceholderText("One reply per line")
+        raw = settings.value("quick_replies")
+        if raw and isinstance(raw, list):
+            self.replies_list.setPlainText("\n".join(raw))
+        else:
+            self.replies_list.setPlainText("\n".join(FeedbackUI._DEFAULT_QUICK_REPLIES))
+        replies_layout.addWidget(self.replies_list)
+
+        reset_btn = QPushButton("Reset to defaults")
+        reset_btn.clicked.connect(lambda: self.replies_list.setPlainText(
+            "\n".join(FeedbackUI._DEFAULT_QUICK_REPLIES)))
+        replies_layout.addWidget(reset_btn)
+        layout.addWidget(replies_group)
+
+        # --- Buttons ---
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        save_btn = QPushButton("Save")
+        save_btn.clicked.connect(self._save)
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(save_btn)
+        btn_layout.addWidget(cancel_btn)
+        layout.addLayout(btn_layout)
+
+    def _save(self):
+        self.settings.setValue("use_chinese", self.default_chinese.isChecked())
+        self.settings.setValue("reload_rules", self.default_rules.isChecked())
+        lines = [l.strip() for l in self.replies_list.toPlainText().split("\n") if l.strip()]
+        self.settings.setValue("quick_replies", lines)
+        self.accept()
+
+
+class ImagePreviewDialog(QDialog):
+    """Full-size image preview dialog, click or press Escape to close."""
+    def __init__(self, pixmap: QPixmap, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Image Preview")
+        self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        label = QLabel()
+        label.setAlignment(Qt.AlignCenter)
+        label.setStyleSheet("background: #1a1a1a;")
+
+        screen = QApplication.primaryScreen().availableGeometry()
+        max_w = int(screen.width() * 0.85)
+        max_h = int(screen.height() * 0.85)
+        if pixmap.width() > max_w or pixmap.height() > max_h:
+            scaled = pixmap.scaled(max_w, max_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        else:
+            scaled = pixmap
+        label.setPixmap(scaled)
+        label.setCursor(Qt.PointingHandCursor)
+        label.mousePressEvent = lambda _: self.close()
+        layout.addWidget(label)
+
+        self.resize(scaled.width() + 2, scaled.height() + 2)
+
+
 class ScreenshotThumbnail(QWidget):
     removed = Signal(int)
 
     def __init__(self, pixmap: QPixmap, index: int, parent=None):
         super().__init__(parent)
         self.index = index
+        self._full_pixmap = pixmap
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -85,7 +182,10 @@ class ScreenshotThumbnail(QWidget):
         scaled = pixmap.scaled(150, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         thumb_label.setPixmap(scaled)
         thumb_label.setAlignment(Qt.AlignCenter)
+        thumb_label.setCursor(Qt.PointingHandCursor)
+        thumb_label.setToolTip("Click to preview full image")
         thumb_label.setStyleSheet("border: 1px solid #555; border-radius: 4px; padding: 2px;")
+        thumb_label.mousePressEvent = lambda _: self._preview()
         layout.addWidget(thumb_label)
 
         remove_btn = QPushButton("✕")
@@ -100,6 +200,10 @@ class ScreenshotThumbnail(QWidget):
 
         self.setFixedWidth(166)
 
+    def _preview(self):
+        dialog = ImagePreviewDialog(self._full_pixmap, self)
+        dialog.exec()
+
 class FeedbackUI(QMainWindow):
     def __init__(self, prompt: str, predefined_options: list[str] | None = None, window_id: str = "0"):
         super().__init__()
@@ -108,7 +212,8 @@ class FeedbackUI(QMainWindow):
         self.feedback_result = None
         self.screenshots: list[QPixmap] = []
 
-        title = "Interactive Feedback MCP"
+        self._local_version = _read_local_version()
+        title = f"Interactive Feedback MCP v{self._local_version}"
         if window_id and window_id != "0":
             title += f" #{window_id}"
         self.setWindowTitle(title)
@@ -274,11 +379,106 @@ class FeedbackUI(QMainWindow):
         screenshot_main_layout.addWidget(self.screenshots_scroll)
         feedback_layout.addWidget(screenshot_section)
 
+        toggle_bar = QHBoxLayout()
+        self.chinese_toggle = QCheckBox("使用中文")
+        self.chinese_toggle.setToolTip("Auto-append Chinese language hint to feedback")
+        self.chinese_toggle.setChecked(self.settings.value("use_chinese", True, type=bool))
+        self.chinese_toggle.setStyleSheet("QCheckBox { color: #aaa; font-size: 11px; }")
+        toggle_bar.addWidget(self.chinese_toggle)
+
+        self.reload_rules_toggle = QCheckBox("重新读取Rules")
+        self.reload_rules_toggle.setToolTip("Remind AI to re-read Cursor Rules")
+        self.reload_rules_toggle.setChecked(self.settings.value("reload_rules", False, type=bool))
+        self.reload_rules_toggle.setStyleSheet("QCheckBox { color: #aaa; font-size: 11px; }")
+        toggle_bar.addWidget(self.reload_rules_toggle)
+
+        toggle_bar.addStretch()
+        feedback_layout.addLayout(toggle_bar)
+
+        bottom_bar = QHBoxLayout()
+        quick_reply_btn = QPushButton("⚡ Quick Reply")
+        quick_reply_btn.setToolTip("Choose from preset quick replies")
+        quick_reply_btn.setStyleSheet(
+            "QPushButton { color: #e0a030; background: transparent; "
+            "border: 1px solid #555; border-radius: 3px; padding: 4px 12px; }"
+            "QPushButton:hover { background: rgba(224,160,48,0.15); }"
+        )
+        quick_reply_btn.clicked.connect(self._show_quick_replies)
+        bottom_bar.addWidget(quick_reply_btn)
+
+        settings_btn = QPushButton("⚙")
+        settings_btn.setFixedSize(30, 30)
+        settings_btn.setToolTip("Settings")
+        settings_btn.setStyleSheet(
+            "QPushButton { color: #aaa; background: transparent; "
+            "border: 1px solid #555; border-radius: 3px; font-size: 14px; }"
+            "QPushButton:hover { background: rgba(42,130,218,0.25); color: #fff; }"
+        )
+        settings_btn.clicked.connect(self._open_settings)
+        bottom_bar.addWidget(settings_btn)
+
+        bottom_bar.addStretch()
+
         submit_button = QPushButton("&Send Feedback")
         submit_button.clicked.connect(self._submit_feedback)
-        feedback_layout.addWidget(submit_button)
+        bottom_bar.addWidget(submit_button)
+
+        feedback_layout.addLayout(bottom_bar)
 
         layout.addWidget(self.feedback_group)
+
+    def _open_settings(self):
+        dialog = SettingsDialog(self.settings, self)
+        if dialog.exec() == QDialog.Accepted:
+            self.chinese_toggle.setChecked(self.settings.value("use_chinese", True, type=bool))
+            self.reload_rules_toggle.setChecked(self.settings.value("reload_rules", False, type=bool))
+
+    # --- Quick Reply ---
+
+    _DEFAULT_QUICK_REPLIES = [
+        "没问题，继续",
+        "还需要调整",
+        "确认，提交推送",
+        "先检查下再说",
+        "还有其他问题",
+        "没有了，完成",
+    ]
+
+    def _get_quick_replies(self) -> list[str]:
+        raw = self.settings.value("quick_replies")
+        if raw and isinstance(raw, list):
+            return raw
+        return self._DEFAULT_QUICK_REPLIES
+
+    def _show_quick_replies(self):
+        replies = self._get_quick_replies()
+        menu = QMenu(self)
+        menu.setStyleSheet(
+            "QMenu { background: #353535; color: #e0e0e0; border: 1px solid #555; padding: 4px; }"
+            "QMenu::item { padding: 6px 20px; }"
+            "QMenu::item:selected { background: rgba(42,130,218,0.4); }"
+            "QMenu::separator { height: 1px; background: #555; margin: 4px 8px; }"
+        )
+        for text in replies:
+            action = QAction(text, menu)
+            action.triggered.connect(lambda checked, t=text: self._apply_quick_reply(t))
+            menu.addAction(action)
+        menu.addSeparator()
+        submit_action = QAction("── Submit directly ──", menu)
+        submit_action.setEnabled(False)
+        menu.addAction(submit_action)
+        for text in replies:
+            action = QAction(f"⚡ {text}", menu)
+            action.triggered.connect(lambda checked, t=text: self._apply_quick_reply(t, submit=True))
+            menu.addAction(action)
+
+        btn = self.sender()
+        menu.exec(btn.mapToGlobal(btn.rect().topLeft()))
+
+    def _apply_quick_reply(self, text: str, submit: bool = False):
+        self.feedback_text.setPlainText(text)
+        if submit:
+            self._submit_feedback()
 
     # --- Screenshot methods ---
 
@@ -374,6 +574,14 @@ class FeedbackUI(QMainWindow):
             final_feedback_parts.append("; ".join(selected_options))
         if feedback_text:
             final_feedback_parts.append(feedback_text)
+
+        if self.chinese_toggle.isChecked():
+            final_feedback_parts.append("(请使用中文回复和思考)")
+        if self.reload_rules_toggle.isChecked():
+            final_feedback_parts.append("(请重新读取 Cursor Rules)")
+
+        self.settings.setValue("use_chinese", self.chinese_toggle.isChecked())
+        self.settings.setValue("reload_rules", self.reload_rules_toggle.isChecked())
 
         final_feedback = "\n\n".join(final_feedback_parts)
 

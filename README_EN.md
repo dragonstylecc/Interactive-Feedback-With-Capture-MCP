@@ -25,6 +25,15 @@ Screenshots are returned to AI via MCP Image content type, allowing AI to direct
 - **📋 One-Click Copy** — Copy button at the top of the message area to copy full content to clipboard
 - **🖱️ Text Selectable** — Message content supports mouse selection and `Ctrl+C` copy
 - **📜 Scrollable** — Long text automatically shows a vertical scrollbar
+- **🔍 Thumbnail Zoom** — Click screenshot thumbnails to open a full-size preview dialog
+
+## ⚡ Quick Reply
+
+The feedback window provides a "⚡ Quick Reply" button at the bottom:
+- **One-click fill** — Choose from preset replies to auto-fill the text box
+- **Direct submit** — Select "⚡ prefixed" options to auto-submit without clicking Send
+- **Preset list** — Built-in common replies like "No problem, continue", "Need adjustments", etc.
+- **Customizable** — Persisted via QSettings, supports custom quick reply lists
 
 ## ⏱️ Timeout & Connection Management
 
@@ -38,20 +47,50 @@ The feedback window waits for user input and may last a long time. The `timeout`
 "timeout": 3600
 ```
 
-### Heartbeat & Orphaned Window Cleanup
+### Adaptive Heartbeat & SOFT_TIMEOUT
 
-The server sends progress updates via `report_progress` every **30 seconds** while waiting for user input:
-- **Status Monitoring** — Observe wait duration for debugging
-- **Connection Detection** — After **3 consecutive** heartbeat failures (~90 seconds), the client is assumed disconnected and the **orphaned feedback window is automatically closed**
-- **Auto Retry** — After closing an orphaned window, automatically retries opening the feedback window once
-- **Fallback** — If retry fails, returns an error message prompting the Agent to switch to the built-in `AskQuestion` tool
+The server sends adaptive-frequency heartbeats via `report_progress` while waiting:
+
+| Wait Duration | Heartbeat Interval | Notes |
+|--------------|-------------------|-------|
+| 0 ~ 10 min | 10 seconds | High-frequency initial monitoring |
+| 10 ~ 60 min | 60 seconds | Reduced frequency to minimize noise |
+| 60 min+ | 5 minutes | Low-frequency keep-alive |
+
+Heartbeat features:
+- **Connection Detection** — After **3 consecutive** failures, the client is assumed disconnected and the **orphaned feedback window is automatically closed**
+- **SOFT_TIMEOUT** — After ~58 minutes, proactively returns a prompt message so the Agent can re-invoke to continue (avoids hard timeout -32001 errors)
+- **Auto Retry** — After closing an orphaned window, automatically retries once
+- **Fallback** — If retry fails, prompts the Agent to switch to the built-in `AskQuestion` tool
 
 ### Multi-Agent Parallel Support
 
 When multiple Agents run in parallel within the same project, each Agent's feedback window is independently managed:
 - Window titles display dynamic numbering (`#1`, `#2`...) to distinguish different Agent requests
-- Numbers are automatically assigned the lowest available value and released when the window closes
+- **File-lock based** cross-process window ID management with automatic lowest-available assignment
 - Windows do not interfere with each other; users can handle multiple feedback requests simultaneously
+
+## 🔘 Bottom Quick Toggles
+
+Two quick toggles at the bottom of the feedback window:
+- **Use Chinese** — Checked by default, auto-appends `(请使用中文回复和思考)` to ensure AI responds in Chinese
+- **Reload Rules** — Unchecked by default, appends `(请重新读取 Cursor Rules)` when checked
+
+Toggle states are persisted via QSettings and automatically restored on next launch.
+
+## ⚙️ Settings Page
+
+Click the **⚙ gear button** at the bottom of the feedback window:
+- **Default Toggles** — Configure default states for "Use Chinese" and "Reload Rules"
+- **Quick Reply Management** — Add/edit/delete custom quick reply presets
+- **Reset to Defaults** — Restore the default quick reply list
+
+## 📋 Logging & Troubleshooting
+
+Server logs are written to the temp directory:
+- **Log path** — `%TEMP%/mcp_feedback_server.log` (Windows) or `/tmp/mcp_feedback_server.log` (Linux/macOS)
+- Records tool calls, heartbeat events, timeouts, errors, and other key information
+- Useful for debugging connection issues and UI launch failures
 
 ## 🖥️ Platform Support
 
@@ -159,3 +198,4 @@ This project is based on the following excellent projects:
 - Original project developed by Fábio Ferreira ([@fabiomlferreira](https://x.com/fabiomlferreira))
 - Enhanced by Pau Oliva ([@pof](https://x.com/pof)), inspired by Tommy Tong's [interactive-mcp](https://github.com/ttommyth/interactive-mcp)
 - Screenshot feedback added by [dragonstylecc](https://github.com/dragonstylecc)
+- v0.3.0 features partially inspired by [rooney2020/qt-interactive-feedback-mcp](https://github.com/rooney2020/qt-interactive-feedback-mcp) (adaptive heartbeat, SOFT_TIMEOUT, quick reply, settings page, etc.)

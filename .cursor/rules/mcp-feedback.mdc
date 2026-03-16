@@ -1,0 +1,23 @@
+---
+description: Rules for interactive_feedback MCP tool usage - when to call, how to handle failures, and timeout management.
+globs:
+alwaysApply: true
+---
+
+# Interactive Feedback MCP Rules
+
+## Core Rules
+
+1. If a request or instruction is unclear, use the `interactive_feedback` tool to ask the user clarifying questions before proceeding. Do not make assumptions.
+2. Provide predefined options via the `interactive_feedback` MCP tool whenever possible to facilitate quick decision-making.
+3. Each time you are about to complete a user request, call the `interactive_feedback` tool to ask for user feedback before finalizing. If the feedback is empty, you may end the request and must not call the tool in a loop.
+
+## Fallback
+
+If the `interactive_feedback` tool call fails (timeout, connection error, or UI launch failure), use the built-in `AskQuestion` tool as a fallback.
+
+## Timeout Handling
+
+- The feedback window may remain open for extended periods while the user reviews or provides detailed feedback.
+- If the tool returns a message containing `[心跳]`, it means the soft timeout was reached. Re-invoke `interactive_feedback` to continue the conversation.
+- Do not assume a timeout means the user is unresponsive — they may simply need more time.

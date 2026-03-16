@@ -17,4 +17,5 @@ venv*/
 .DS_Store
 uv.lock
 
-.cursor/rules/
+.cursor/mcp.json
+ARCHITECTURE.md
