@@ -169,30 +169,38 @@
 }
 ```
 
-2. 在 AI 助手的自定义规则中添加以下内容（Cursor Settings > Rules > User Rules）：
-- 英文版：
-> If a request or instruction is unclear, use the interactive_feedback tool to ask the user clarifying questions before proceeding. Do not make assumptions.
-Provide predefined options to the user via the interactive_feedback MCP tool whenever possible to facilitate quick decision-making.
-Each time you are about to complete a user request, call the interactive_feedback tool to ask for user feedback before finalizing the process. If the feedback is empty, you may end the request and must not call the tool in a loop. If the tool call fails, use the built-in AskQuestion tool.
-- 中文版
-> 如果要求或指令不明确，在继续操作之前使用interactive_feedback工具向用户询问澄清问题，不要做出假设。
-尽可能通过interactive_feedback MCP工具向用户提供预定义的选项，以促进快速决策。
-每当即将完成用户请求时，调用interactive_feedback工具在结束流程前请求用户反馈。如果反馈为空，则可以结束请求，并且不要循环调用该工具，如果该工具调用失败时，使用内置 `AskQuestion` 工具。
-这将确保 AI 助手在提示不明确时以及在将任务标记为完成之前，始终使用此 MCP 服务器请求用户反馈。
+2. **Cursor Rules 文件（推荐）：**
 
-## 📸 截图功能使用说明
+   项目自带开箱即用的 Rules 文件 `.cursor/rules/mcp-feedback.mdc`，复制到你的项目中即可：
 
-反馈窗口底部新增了三个截图按钮：
+   ```bash
+   cp -r /path/to/interactive-feedback-mcp/.cursor/rules/ /your/project/.cursor/rules/
+   ```
 
-| 按钮 | 功能 | 说明 |
-|------|------|------|
-| 📷 Capture Screen | 全屏截图 | 自动最小化窗口，截取整个屏幕后恢复 |
-| 📋 Paste Clipboard | 粘贴剪贴板 | 粘贴已复制的截图（Windows: `Win+Shift+S`，Linux: 系统截图工具，macOS: `Cmd+Shift+4`） |
-| 📁 Browse... | 浏览文件 | 从本地选择图片文件 |
+   或者在 Cursor Settings > Rules > User Rules 中手动添加以下内容：
 
-**快捷操作：** 在文本输入框中按 `Ctrl+V` 可直接粘贴剪贴板中的图片。
+   > 如果要求或指令不明确，在继续操作之前使用interactive_feedback工具向用户询问澄清问题，不要做出假设。
+   > 尽可能通过interactive_feedback MCP工具向用户提供预定义的选项，以促进快速决策。
+   > 每当即将完成用户请求时，调用interactive_feedback工具在结束流程前请求用户反馈。如果反馈为空，则可以结束请求，并且不要循环调用该工具，如果该工具调用失败时，使用内置 `AskQuestion` 工具。
 
-截图以缩略图形式预览在窗口中，点击 ✕ 按钮可删除单张截图。提交反馈时，截图会通过 MCP 协议的 Image 内容类型发送给 AI，AI 可以直接查看截图内容。
+## 📸 截图与图片附件
+
+| 方式 | 说明 |
+|------|------|
+| 📷 Capture Screen | 自动最小化窗口，截取整个屏幕后恢复 |
+| 📋 Paste Clipboard | 粘贴已复制的截图（Windows: `Win+Shift+S`，macOS: `Cmd+Shift+4`，Linux: 系统截图工具） |
+| 📁 Browse... | 从本地选择图片文件（PNG、JPG、BMP、GIF、WebP） |
+| 🖱️ 拖拽文件 | 从文件管理器直接拖拽图片到窗口 |
+| ⌨️ Ctrl+V | 在文本框中直接粘贴剪贴板图片 |
+
+截图以缩略图形式预览，**点击缩略图可放大查看原图**，点击 ✕ 可删除。
+
+## ⌨️ 快捷键
+
+| 快捷键 | 功能 |
+|--------|------|
+| `Ctrl+Enter` | 提交反馈 |
+| `Ctrl+V` | 粘贴剪贴板图片 |
 
 ## 🙏 致谢
 

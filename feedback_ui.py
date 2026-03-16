@@ -87,6 +87,15 @@ class SettingsDialog(QDialog):
         self.setWindowTitle("Settings")
         self.setMinimumWidth(450)
         self.setMinimumHeight(400)
+        self.setStyleSheet(
+            "QDialog { background: #353535; color: #e0e0e0; }"
+            "QGroupBox { border: 1px solid #555; border-radius: 4px; margin-top: 8px; padding-top: 12px; color: #ccc; }"
+            "QGroupBox::title { subcontrol-origin: margin; left: 10px; padding: 0 4px; }"
+            "QCheckBox { color: #e0e0e0; }"
+            "QTextEdit { background: #2a2a2a; color: #e0e0e0; border: 1px solid #555; border-radius: 3px; }"
+            "QPushButton { background: #444; color: #e0e0e0; border: 1px solid #555; border-radius: 3px; padding: 5px 15px; }"
+            "QPushButton:hover { background: rgba(42,130,218,0.3); }"
+        )
         layout = QVBoxLayout(self)
 
         # --- Default toggles ---
@@ -143,6 +152,7 @@ class ImagePreviewDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Image Preview")
         self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint)
+        self.setStyleSheet("QDialog { background: #1a1a1a; }")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -207,6 +217,7 @@ class ScreenshotThumbnail(QWidget):
 class FeedbackUI(QMainWindow):
     def __init__(self, prompt: str, predefined_options: list[str] | None = None, window_id: str = "0"):
         super().__init__()
+        self.setAcceptDrops(True)
         self.prompt = prompt
         self.predefined_options = predefined_options or []
         self.feedback_result = None
@@ -427,6 +438,24 @@ class FeedbackUI(QMainWindow):
 
         layout.addWidget(self.feedback_group)
 
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls() or event.mimeData().hasImage():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        mime = event.mimeData()
+        if mime.hasImage():
+            image = mime.imageData()
+            if image and not image.isNull():
+                self._add_screenshot(QPixmap.fromImage(image))
+        elif mime.hasUrls():
+            for url in mime.urls():
+                path = url.toLocalFile()
+                if path and os.path.isfile(path):
+                    pixmap = QPixmap(path)
+                    if not pixmap.isNull():
+                        self._add_screenshot(pixmap)
+
     def _open_settings(self):
         dialog = SettingsDialog(self.settings, self)
         if dialog.exec() == QDialog.Accepted:
@@ -575,9 +604,10 @@ class FeedbackUI(QMainWindow):
         if feedback_text:
             final_feedback_parts.append(feedback_text)
 
-        if self.chinese_toggle.isChecked():
+        has_content = bool(final_feedback_parts) or len(self.screenshots) > 0
+        if has_content and self.chinese_toggle.isChecked():
             final_feedback_parts.append("(请使用中文回复和思考)")
-        if self.reload_rules_toggle.isChecked():
+        if has_content and self.reload_rules_toggle.isChecked():
             final_feedback_parts.append("(请重新读取 Cursor Rules)")
 
         self.settings.setValue("use_chinese", self.chinese_toggle.isChecked())

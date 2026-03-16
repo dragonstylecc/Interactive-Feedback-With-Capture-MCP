@@ -28,11 +28,19 @@ _LOCK_DIR = os.path.join(tempfile.gettempdir(), "mcp_feedback_windows")
 _LOG_PATH = os.path.join(tempfile.gettempdir(), "mcp_feedback_server.log")
 
 
+_LOG_MAX_SIZE = 2 * 1024 * 1024  # 2 MB
+
+
 def _slog(msg: str):
-    """Append a timestamped line to the server log file."""
+    """Append a timestamped line to the server log file, rotating at 2MB."""
     import datetime
     ts = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
     try:
+        if os.path.exists(_LOG_PATH) and os.path.getsize(_LOG_PATH) > _LOG_MAX_SIZE:
+            bak = _LOG_PATH + ".bak"
+            if os.path.exists(bak):
+                os.unlink(bak)
+            os.rename(_LOG_PATH, bak)
         with open(_LOG_PATH, "a", encoding="utf-8") as f:
             f.write(f"[{ts}] {msg}\n")
     except Exception:
@@ -48,11 +56,39 @@ def _adaptive_heartbeat_interval(elapsed: float) -> float:
     return 300
 
 
+_MAX_WINDOWS = 20
+
+
+def _cleanup_stale_locks():
+    """Remove lock files left by crashed processes."""
+    if not os.path.isdir(_LOCK_DIR):
+        return
+    for name in os.listdir(_LOCK_DIR):
+        if not name.startswith("window_") or not name.endswith(".lock"):
+            continue
+        path = os.path.join(_LOCK_DIR, name)
+        try:
+            with open(path, "r") as f:
+                pid_str = f.read().strip()
+            if pid_str and pid_str.isdigit():
+                pid = int(pid_str)
+                try:
+                    os.kill(pid, 0)
+                    continue
+                except OSError:
+                    pass
+            os.unlink(path)
+            _slog(f"Cleaned stale lock: {name}")
+        except Exception:
+            pass
+
+
 def _acquire_window_id() -> tuple[int, object]:
     """Acquire a globally unique window ID using file locks (cross-process safe)."""
     os.makedirs(_LOCK_DIR, exist_ok=True)
+    _cleanup_stale_locks()
     window_id = 1
-    while True:
+    while window_id <= _MAX_WINDOWS:
         lock_path = os.path.join(_LOCK_DIR, f"window_{window_id}.lock")
         fd = open(lock_path, "w")
         try:
@@ -66,6 +102,7 @@ def _acquire_window_id() -> tuple[int, object]:
         except (IOError, OSError):
             fd.close()
             window_id += 1
+    raise RuntimeError(f"No available window ID (max {_MAX_WINDOWS})")
 
 
 def _release_window_id(fd):

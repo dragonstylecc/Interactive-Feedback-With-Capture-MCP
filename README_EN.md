@@ -169,27 +169,38 @@ This server exposes the following tool via the MCP protocol:
 }
 ```
 
-2. Add the following to your AI assistant's custom rules (Cursor Settings > Rules > User Rules):
+2. **Cursor Rules file (recommended):**
 
-> If a request or instruction is unclear, use the interactive_feedback tool to ask the user clarifying questions before proceeding. Do not make assumptions.
-> Provide predefined options to the user via the interactive_feedback MCP tool whenever possible to facilitate quick decision-making.
-> Each time you are about to complete a user request, call the interactive_feedback tool to ask for user feedback before finalizing the process. If the feedback is empty, you may end the request and must not call the tool in a loop. If the tool call fails, use the built-in AskQuestion tool.
+   The project includes an out-of-box Rules file `.cursor/rules/mcp-feedback.mdc`. Copy it to your project:
 
-This ensures the AI assistant always uses this MCP server to request user feedback when prompts are unclear and before marking tasks as completed.
+   ```bash
+   cp -r /path/to/interactive-feedback-mcp/.cursor/rules/ /your/project/.cursor/rules/
+   ```
 
-## 📸 Screenshot Usage Guide
+   Or manually add to Cursor Settings > Rules > User Rules:
 
-Three screenshot buttons are available at the bottom of the feedback window:
+   > If a request or instruction is unclear, use the interactive_feedback tool to ask the user clarifying questions before proceeding. Do not make assumptions.
+   > Provide predefined options to the user via the interactive_feedback MCP tool whenever possible to facilitate quick decision-making.
+   > Each time you are about to complete a user request, call the interactive_feedback tool to ask for user feedback before finalizing the process. If the feedback is empty, you may end the request and must not call the tool in a loop. If the tool call fails, use the built-in AskQuestion tool.
 
-| Button | Function | Description |
-|--------|----------|-------------|
-| 📷 Capture Screen | Full screen capture | Auto-minimizes window, captures entire screen, then restores |
-| 📋 Paste Clipboard | Paste clipboard | Paste copied screenshots (Windows: `Win+Shift+S`, Linux: system screenshot tool, macOS: `Cmd+Shift+4`) |
-| 📁 Browse... | Browse files | Select image files from local filesystem |
+## 📸 Screenshots & Image Attachments
 
-**Shortcut:** Press `Ctrl+V` in the text input box to paste clipboard images directly.
+| Method | Description |
+|--------|-------------|
+| 📷 Capture Screen | Auto-minimizes window, captures entire screen, then restores |
+| 📋 Paste Clipboard | Paste copied screenshots (Windows: `Win+Shift+S`, macOS: `Cmd+Shift+4`, Linux: system tool) |
+| 📁 Browse... | Select image files from local filesystem (PNG, JPG, BMP, GIF, WebP) |
+| 🖱️ Drag & Drop | Drag image files from file explorer directly into the window |
+| ⌨️ Ctrl+V | Paste clipboard images in the text box |
 
-Screenshots are previewed as thumbnails in the window. Click the ✕ button to remove individual screenshots. When submitting feedback, screenshots are sent to AI via the MCP protocol's Image content type, allowing AI to directly view the screenshot content.
+Thumbnails are shown inline. **Click a thumbnail to preview full-size.** Click ✕ to remove.
+
+## ⌨️ Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+Enter` | Submit feedback |
+| `Ctrl+V` | Paste clipboard image |
 
 ## 🙏 Acknowledgements
 
