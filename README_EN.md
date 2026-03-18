@@ -139,36 +139,11 @@ This server exposes the following tool via the MCP protocol:
 
 - `interactive_feedback`: Ask the user a question and return the answer. Supports predefined options and **screenshot attachments**.
 
-## 📦 Installation
+## 📦 Installation & Configuration
 
 ### Option 1: uvx one-liner (Recommended)
 
-No need to clone the repo — run directly with `uvx`:
-
-```bash
-uvx interactive-feedback-with-capture
-```
-
-> Requires [uv](https://github.com/astral-sh/uv): `pip install uv`
-
-### Option 2: From source
-
-1.  **Prerequisites:**
-    *   Python 3.11 or newer
-    *   [uv](https://github.com/astral-sh/uv) (Python package manager):
-        *   Windows: `pip install uv`
-        *   Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-        *   macOS: `brew install uv`
-2.  **Get the code:**
-    ```bash
-    git clone https://github.com/dragonstylecc/Interactive-Feedback-With-Capture-MCP.git
-    ```
-
-## ⚙️ Configuration
-
-Add the following configuration to `claude_desktop_config.json` (Claude Desktop) or `mcp.json` (Cursor):
-
-### Option 1: uvx (Recommended, no cloning needed)
+No need to clone the repo. Install [uv](https://github.com/astral-sh/uv), then add to `mcp.json` (Cursor) or `claude_desktop_config.json` (Claude Desktop):
 
 ```json
 {
@@ -187,7 +162,11 @@ Add the following configuration to `claude_desktop_config.json` (Claude Desktop)
 
 ### Option 2: From source
 
-**Replace `/path/to/interactive-feedback-mcp` with the actual path where you cloned the repository.**
+```bash
+git clone https://github.com/dragonstylecc/Interactive-Feedback-With-Capture-MCP.git
+```
+
+**Replace `/path/to/interactive-feedback-mcp` with the actual path:**
 
 ```json
 {
@@ -209,7 +188,9 @@ Add the following configuration to `claude_desktop_config.json` (Claude Desktop)
 }
 ```
 
-2. **Cursor Rules file (recommended):**
+> **Prerequisites:** Python 3.11+, [uv](https://github.com/astral-sh/uv) (Windows: `pip install uv`, Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`, macOS: `brew install uv`)
+
+### Cursor Rules file (recommended)
 
    The project includes an out-of-box Rules file `.cursor/rules/mcp-feedback.mdc`. Copy it to your project:
 

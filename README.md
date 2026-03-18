@@ -139,36 +139,13 @@
 
 - `interactive_feedback`：向用户提问并返回回答。支持预定义选项和**截图附件**。
 
-## 📦 安装
+## 📦 安装与配置
 
 ### 方式一：uvx 一键运行（推荐）
 
-无需克隆仓库，直接使用 `uvx` 运行：
+无需克隆仓库，安装 [uv](https://github.com/astral-sh/uv) 后直接配置即可。
 
-```bash
-uvx interactive-feedback-with-capture
-```
-
-> 需要先安装 [uv](https://github.com/astral-sh/uv)：`pip install uv`
-
-### 方式二：从源码安装
-
-1.  **前置要求：**
-    *   Python 3.11 或更高版本
-    *   [uv](https://github.com/astral-sh/uv)（Python 包管理器）：
-        *   Windows: `pip install uv`
-        *   Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`
-        *   macOS: `brew install uv`
-2.  **获取代码：**
-    ```bash
-    git clone https://github.com/dragonstylecc/Interactive-Feedback-With-Capture-MCP.git
-    ```
-
-## ⚙️ 配置
-
-在 `claude_desktop_config.json`（Claude Desktop）或 `mcp.json`（Cursor）中添加以下配置：
-
-### 配置方式一：uvx 运行（推荐，无需克隆仓库）
+在 `mcp.json`（Cursor）或 `claude_desktop_config.json`（Claude Desktop）中添加：
 
 ```json
 {
@@ -185,9 +162,13 @@ uvx interactive-feedback-with-capture
 }
 ```
 
-### 配置方式二：从源码运行
+### 方式二：从源码运行
 
-**请将 `/path/to/interactive-feedback-mcp` 替换为你实际克隆仓库的路径。**
+```bash
+git clone https://github.com/dragonstylecc/Interactive-Feedback-With-Capture-MCP.git
+```
+
+**将 `/path/to/interactive-feedback-mcp` 替换为实际路径：**
 
 ```json
 {
@@ -209,7 +190,9 @@ uvx interactive-feedback-with-capture
 }
 ```
 
-2. **Cursor Rules 文件（推荐）：**
+> **前置要求：** Python 3.11+，[uv](https://github.com/astral-sh/uv)（Windows: `pip install uv`，Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`，macOS: `brew install uv`）
+
+### Cursor Rules 文件（推荐）
 
    项目自带开箱即用的 Rules 文件 `.cursor/rules/mcp-feedback.mdc`，复制到你的项目中即可：
 
