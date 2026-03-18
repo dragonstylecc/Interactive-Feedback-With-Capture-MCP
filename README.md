@@ -22,6 +22,7 @@
 
 ## ✨ 提示内容增强
 
+- **📝 Markdown 渲染** — AI 消息区域支持 Markdown 格式渲染（标题、粗体、代码块、列表等），大幅提升可读性
 - **📋 一键复制** — 提示消息区域顶部提供 Copy 按钮，一键复制完整内容到剪贴板
 - **🖱️ 文字可选** — 提示内容支持鼠标选择和 `Ctrl+C` 复制
 - **📜 滚动显示** — 长文本自动出现垂直滚动条，不再因内容过多而显示不全
@@ -84,6 +85,14 @@
 - **默认开关** — 配置"使用中文"和"重新读取Rules"的默认勾选状态
 - **快捷回复管理** — 添加/编辑/删除自定义快捷回复列表
 - **一键重置** — 恢复默认快捷回复列表
+- **版本检查与更新** — 检查 PyPI/GitHub 最新版本，一键更新（源码用户 `git pull`，pip 用户 `pip install --upgrade`）
+
+### 🔄 自动更新
+
+- **启动时检查** — 窗口打开时自动后台检查最新版本，标题栏显示 `⬆ vX.Y.Z available`
+- **设置页手动检查** — 点击「Check for updates」按钮手动检查
+- **一键更新** — 点击「Update now」按钮自动执行更新，更新后提示重启 MCP 服务
+- **uvx 用户** — 使用 `uvx interactive-feedback-with-capture@latest` 总是运行最新版
 
 ## 📋 日志与排查
 
@@ -132,6 +141,18 @@
 
 ## 📦 安装
 
+### 方式一：uvx 一键运行（推荐）
+
+无需克隆仓库，直接使用 `uvx` 运行：
+
+```bash
+uvx interactive-feedback-with-capture
+```
+
+> 需要先安装 [uv](https://github.com/astral-sh/uv)：`pip install uv`
+
+### 方式二：从源码安装
+
 1.  **前置要求：**
     *   Python 3.11 或更高版本
     *   [uv](https://github.com/astral-sh/uv)（Python 包管理器）：
@@ -145,7 +166,26 @@
 
 ## ⚙️ 配置
 
-1. 在 `claude_desktop_config.json`（Claude Desktop）或 `mcp.json`（Cursor）中添加以下配置：
+在 `claude_desktop_config.json`（Claude Desktop）或 `mcp.json`（Cursor）中添加以下配置：
+
+### 配置方式一：uvx 运行（推荐，无需克隆仓库）
+
+```json
+{
+  "mcpServers": {
+    "interactive-feedback": {
+      "command": "uvx",
+      "args": ["interactive-feedback-with-capture"],
+      "timeout": 3600,
+      "autoApprove": [
+        "interactive_feedback"
+      ]
+    }
+  }
+}
+```
+
+### 配置方式二：从源码运行
 
 **请将 `/path/to/interactive-feedback-mcp` 替换为你实际克隆仓库的路径。**
 

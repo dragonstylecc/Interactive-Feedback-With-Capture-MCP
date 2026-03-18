@@ -22,6 +22,7 @@ Screenshots are returned to AI via MCP Image content type, allowing AI to direct
 
 ## ✨ Enhanced Message Display
 
+- **📝 Markdown Rendering** — AI message area supports Markdown formatting (headings, bold, code blocks, lists, etc.) for greatly improved readability
 - **📋 One-Click Copy** — Copy button at the top of the message area to copy full content to clipboard
 - **🖱️ Text Selectable** — Message content supports mouse selection and `Ctrl+C` copy
 - **📜 Scrollable** — Long text automatically shows a vertical scrollbar
@@ -84,6 +85,14 @@ Click the **⚙ gear button** at the bottom of the feedback window:
 - **Default Toggles** — Configure default states for "Use Chinese" and "Reload Rules"
 - **Quick Reply Management** — Add/edit/delete custom quick reply presets
 - **Reset to Defaults** — Restore the default quick reply list
+- **Version Check & Update** — Check latest version from PyPI/GitHub, one-click update (source users: `git pull`, pip users: `pip install --upgrade`)
+
+### 🔄 Auto Update
+
+- **Startup check** — Background version check on launch; title bar shows `⬆ vX.Y.Z available`
+- **Manual check** — Click "Check for updates" in Settings
+- **One-click update** — Click "Update now" to auto-update, then restart MCP server to apply
+- **uvx users** — Use `uvx interactive-feedback-with-capture@latest` to always run the latest version
 
 ## 📋 Logging & Troubleshooting
 
@@ -132,6 +141,18 @@ This server exposes the following tool via the MCP protocol:
 
 ## 📦 Installation
 
+### Option 1: uvx one-liner (Recommended)
+
+No need to clone the repo — run directly with `uvx`:
+
+```bash
+uvx interactive-feedback-with-capture
+```
+
+> Requires [uv](https://github.com/astral-sh/uv): `pip install uv`
+
+### Option 2: From source
+
 1.  **Prerequisites:**
     *   Python 3.11 or newer
     *   [uv](https://github.com/astral-sh/uv) (Python package manager):
@@ -145,7 +166,26 @@ This server exposes the following tool via the MCP protocol:
 
 ## ⚙️ Configuration
 
-1. Add the following configuration to `claude_desktop_config.json` (Claude Desktop) or `mcp.json` (Cursor):
+Add the following configuration to `claude_desktop_config.json` (Claude Desktop) or `mcp.json` (Cursor):
+
+### Option 1: uvx (Recommended, no cloning needed)
+
+```json
+{
+  "mcpServers": {
+    "interactive-feedback": {
+      "command": "uvx",
+      "args": ["interactive-feedback-with-capture"],
+      "timeout": 3600,
+      "autoApprove": [
+        "interactive_feedback"
+      ]
+    }
+  }
+}
+```
+
+### Option 2: From source
 
 **Replace `/path/to/interactive-feedback-mcp` with the actual path where you cloned the repository.**
 

@@ -278,5 +278,10 @@ async def interactive_feedback(
 
     return contents
 
-if __name__ == "__main__":
+def main():
+    """Entry point for uvx / python -m invocation."""
     mcp.run(transport="stdio", log_level="ERROR")
+
+
+if __name__ == "__main__":
+    main()

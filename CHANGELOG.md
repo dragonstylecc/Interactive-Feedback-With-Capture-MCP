@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.0
+
+### New Features
+- **Markdown rendering** — AI message area renders Markdown (headings, bold, code blocks, lists) via Qt's built-in `setMarkdown()`
+- **PyPI distribution** — Package published to PyPI, supports `uvx interactive-feedback-with-capture` zero-install run
+- **Auto update** — Background version check on startup with title bar notification; one-click update in Settings (git pull for source users, pip upgrade for pip users)
+- **i18n (Chinese/English)** — Full UI internationalization; auto-detects system language, manual override in Settings
+- **Package entry point** — `[project.scripts]` entry point and `python -m interactive_feedback_mcp` support
+
+### Improvements
+- Added `[build-system]` with hatchling for wheel/sdist builds
+- Added PyPI classifiers, keywords, and issue tracker URL
+- Backward compatible: `uv run server.py` still works as before
+
 ## v0.3.0
 
 ### New Features

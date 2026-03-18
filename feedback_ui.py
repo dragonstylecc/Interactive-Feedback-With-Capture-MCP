@@ -5,14 +5,18 @@
 import os
 import sys
 import json
+import locale
 import argparse
 import platform
+import threading
+import subprocess
+import urllib.request
 from typing import TypedDict
 
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QCheckBox, QTextEdit, QGroupBox,
-    QFrame, QScrollArea, QFileDialog, QSizePolicy, QDialog, QMenu,
+    QFrame, QScrollArea, QFileDialog, QSizePolicy, QDialog, QMenu, QComboBox,
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QSettings, QByteArray, QBuffer, QIODevice
 from PySide6.QtGui import QIcon, QKeyEvent, QPalette, QColor, QPixmap, QImage, QAction
@@ -29,6 +33,163 @@ def _read_local_version() -> str:
             return f.read().strip()
     except Exception:
         return "unknown"
+
+
+_PYPI_PACKAGE = "interactive-feedback-with-capture"
+_GITHUB_REPO = "dragonstylecc/Interactive-Feedback-With-Capture-MCP"
+
+
+def _fetch_latest_version() -> str | None:
+    """Check latest version from PyPI, fallback to GitHub releases."""
+    for url in (
+        f"https://pypi.org/pypi/{_PYPI_PACKAGE}/json",
+        f"https://api.github.com/repos/{_GITHUB_REPO}/releases/latest",
+    ):
+        try:
+            req = urllib.request.Request(url, headers={
+                "Accept": "application/json",
+                "User-Agent": "interactive-feedback-mcp",
+            })
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read())
+            if "info" in data:
+                return data["info"]["version"]
+            tag = data.get("tag_name", "")
+            return tag.lstrip("v") if tag else None
+        except Exception:
+            continue
+    return None
+
+def _detect_lang() -> str:
+    try:
+        settings = QSettings("InteractiveFeedbackMCP", "InteractiveFeedbackMCP")
+        saved = settings.value("ui_language", "")
+        if saved in ("zh", "en"):
+            return saved
+    except Exception:
+        pass
+    lang = locale.getdefaultlocale()[0] or ""
+    return "zh" if lang.startswith("zh") else "en"
+
+
+_I18N = {
+    "zh": {
+        "message": "消息：",
+        "copy": "📋 复制",
+        "copy_tip": "复制消息到剪贴板",
+        "placeholder": "在此输入反馈（Ctrl+Enter 提交，Ctrl+V 粘贴截图）",
+        "capture": "📷 截取屏幕",
+        "capture_tip": "最小化此窗口并截取全屏",
+        "paste": "📋 粘贴剪贴板",
+        "paste_tip": "从剪贴板粘贴图片（也可使用 Ctrl+V）",
+        "browse": "📁 浏览...",
+        "browse_tip": "浏览图片文件",
+        "use_chinese": "使用中文",
+        "use_chinese_tip": "自动在反馈末尾追加中文提示",
+        "reload_rules": "重新读取Rules",
+        "reload_rules_tip": "提醒 AI 重新读取 Cursor Rules",
+        "quick_reply": "⚡ 快捷回复",
+        "quick_reply_tip": "从预设中选择快捷回复",
+        "settings_tip": "设置",
+        "send": "发送反馈",
+        "screenshots_count": "{n} 张截图已附加",
+        "preview_tip": "点击预览原图",
+        "preview_title": "图片预览",
+        "submit_directly": "── 直接提交 ──",
+        "select_images": "选择图片",
+        "image_filter": "图片 (*.png *.jpg *.jpeg *.bmp *.gif *.webp);;所有文件 (*)",
+        # SettingsDialog
+        "settings_title": "设置",
+        "default_toggles": "默认开关",
+        "chinese_default": "使用中文（默认开启）",
+        "rules_default": "重新读取Rules（默认关闭）",
+        "quick_replies": "快捷回复",
+        "one_per_line": "每行一条回复",
+        "reset_defaults": "恢复默认",
+        "version_update": "版本与更新",
+        "current_ver": "当前：v{v}",
+        "check_updates": "检查更新",
+        "checking": "检查中...",
+        "update_now": "立即更新",
+        "check_fail": "⚠ 无法检查（网络错误或尚未发布）",
+        "up_to_date": "✅ 已是最新版本！",
+        "new_version": "🆕 新版本 v{v} 可用！",
+        "updating": "⏳ 更新中...",
+        "upgrade_ok": "升级成功",
+        "restart_hint": "⚠ 请重启 MCP 服务以应用更改",
+        "update_fail": "❌ 更新失败：{e}",
+        "save": "保存",
+        "cancel": "取消",
+        "ver_both": "当前：v{local}  |  最新：v{latest}",
+        "update_ok_msg": "✅ {msg}\n⚠ 请重启 MCP 服务以应用更改。",
+        "language": "界面语言",
+        "lang_auto": "自动检测",
+        "lang_restart": "⚠ 语言切换将在下次打开时生效",
+    },
+    "en": {
+        "message": "Message:",
+        "copy": "📋 Copy",
+        "copy_tip": "Copy message to clipboard",
+        "placeholder": "Enter your feedback here (Ctrl+Enter to submit, Ctrl+V to paste screenshot)",
+        "capture": "📷 Capture Screen",
+        "capture_tip": "Minimize this window and capture the full screen",
+        "paste": "📋 Paste Clipboard",
+        "paste_tip": "Paste an image from clipboard (you can also use Ctrl+V)",
+        "browse": "📁 Browse...",
+        "browse_tip": "Browse for image files",
+        "use_chinese": "Use Chinese",
+        "use_chinese_tip": "Auto-append Chinese language hint to feedback",
+        "reload_rules": "Reload Rules",
+        "reload_rules_tip": "Remind AI to re-read Cursor Rules",
+        "quick_reply": "⚡ Quick Reply",
+        "quick_reply_tip": "Choose from preset quick replies",
+        "settings_tip": "Settings",
+        "send": "&Send Feedback",
+        "screenshots_count": "{n} screenshot(s) attached",
+        "preview_tip": "Click to preview full image",
+        "preview_title": "Image Preview",
+        "submit_directly": "── Submit directly ──",
+        "select_images": "Select Images",
+        "image_filter": "Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp);;All Files (*)",
+        # SettingsDialog
+        "settings_title": "Settings",
+        "default_toggles": "Default Toggles",
+        "chinese_default": "Use Chinese (default on)",
+        "rules_default": "Reload Rules (default off)",
+        "quick_replies": "Quick Replies",
+        "one_per_line": "One reply per line",
+        "reset_defaults": "Reset to defaults",
+        "version_update": "Version & Update",
+        "current_ver": "Current: v{v}",
+        "check_updates": "Check for updates",
+        "checking": "Checking...",
+        "update_now": "Update now",
+        "check_fail": "⚠ Unable to check (network error or not published yet)",
+        "up_to_date": "✅ Already up to date!",
+        "new_version": "🆕 New version v{v} available!",
+        "updating": "⏳ Updating...",
+        "upgrade_ok": "Upgrade successful",
+        "restart_hint": "⚠ Restart MCP server to apply changes",
+        "update_fail": "❌ Update failed: {e}",
+        "save": "Save",
+        "cancel": "Cancel",
+        "ver_both": "Current: v{local}  |  Latest: v{latest}",
+        "update_ok_msg": "✅ {msg}\n⚠ Restart MCP server to apply changes.",
+        "language": "UI Language",
+        "lang_auto": "Auto detect",
+        "lang_restart": "⚠ Language change takes effect on next launch",
+    },
+}
+
+_LANG = _detect_lang()
+
+
+def _t(key: str, **kwargs) -> str:
+    text = _I18N.get(_LANG, _I18N["en"]).get(key, key)
+    if kwargs:
+        text = text.format(**kwargs)
+    return text
+
 
 def get_dark_mode_palette(app: QApplication):
     darkPalette = app.palette()
@@ -81,10 +242,15 @@ class FeedbackTextEdit(QTextEdit):
 
 class SettingsDialog(QDialog):
     """Settings dialog for managing quick replies and default toggles."""
+    _check_done_signal = Signal(str, object)
+    _update_done_signal = Signal(bool, str)
+
     def __init__(self, settings: QSettings, parent=None):
         super().__init__(parent)
+        self._check_done_signal.connect(self._on_check_done)
+        self._update_done_signal.connect(self._on_update_done)
         self.settings = settings
-        self.setWindowTitle("Settings")
+        self.setWindowTitle(_t("settings_title"))
         self.setMinimumWidth(450)
         self.setMinimumHeight(400)
         self.setStyleSheet(
@@ -98,22 +264,42 @@ class SettingsDialog(QDialog):
         )
         layout = QVBoxLayout(self)
 
+        # --- Language ---
+        lang_row = QHBoxLayout()
+        lang_label = QLabel(_t("language") + ":")
+        lang_label.setStyleSheet("color: #ccc;")
+        lang_row.addWidget(lang_label)
+        self._lang_combo = QComboBox()
+        self._lang_combo.setStyleSheet(
+            "QComboBox { background: #444; color: #e0e0e0; border: 1px solid #555; border-radius: 3px; padding: 3px 8px; }"
+        )
+        self._lang_combo.addItem(_t("lang_auto"), "")
+        self._lang_combo.addItem("中文", "zh")
+        self._lang_combo.addItem("English", "en")
+        current_lang = settings.value("ui_language", "")
+        idx = self._lang_combo.findData(current_lang)
+        if idx >= 0:
+            self._lang_combo.setCurrentIndex(idx)
+        lang_row.addWidget(self._lang_combo)
+        lang_row.addStretch()
+        layout.addLayout(lang_row)
+
         # --- Default toggles ---
-        toggles_group = QGroupBox("Default Toggles")
+        toggles_group = QGroupBox(_t("default_toggles"))
         toggles_layout = QVBoxLayout(toggles_group)
-        self.default_chinese = QCheckBox("使用中文 (default on)")
+        self.default_chinese = QCheckBox(_t("chinese_default"))
         self.default_chinese.setChecked(settings.value("use_chinese", True, type=bool))
         toggles_layout.addWidget(self.default_chinese)
-        self.default_rules = QCheckBox("重新读取Rules (default off)")
+        self.default_rules = QCheckBox(_t("rules_default"))
         self.default_rules.setChecked(settings.value("reload_rules", False, type=bool))
         toggles_layout.addWidget(self.default_rules)
         layout.addWidget(toggles_group)
 
         # --- Quick replies ---
-        replies_group = QGroupBox("Quick Replies")
+        replies_group = QGroupBox(_t("quick_replies"))
         replies_layout = QVBoxLayout(replies_group)
         self.replies_list = QTextEdit()
-        self.replies_list.setPlaceholderText("One reply per line")
+        self.replies_list.setPlaceholderText(_t("one_per_line"))
         raw = settings.value("quick_replies")
         if raw and isinstance(raw, list):
             self.replies_list.setPlainText("\n".join(raw))
@@ -121,28 +307,128 @@ class SettingsDialog(QDialog):
             self.replies_list.setPlainText("\n".join(FeedbackUI._DEFAULT_QUICK_REPLIES))
         replies_layout.addWidget(self.replies_list)
 
-        reset_btn = QPushButton("Reset to defaults")
+        reset_btn = QPushButton(_t("reset_defaults"))
         reset_btn.clicked.connect(lambda: self.replies_list.setPlainText(
             "\n".join(FeedbackUI._DEFAULT_QUICK_REPLIES)))
         replies_layout.addWidget(reset_btn)
         layout.addWidget(replies_group)
 
+        # --- Update section ---
+        update_group = QGroupBox(_t("version_update"))
+        update_layout = QVBoxLayout(update_group)
+        local_ver = _read_local_version()
+        self._ver_label = QLabel(_t("current_ver", v=local_ver))
+        self._ver_label.setStyleSheet("color: #ccc;")
+        update_layout.addWidget(self._ver_label)
+
+        update_btn_row = QHBoxLayout()
+        self._check_btn = QPushButton(_t("check_updates"))
+        self._check_btn.clicked.connect(self._check_update)
+        update_btn_row.addWidget(self._check_btn)
+
+        self._update_btn = QPushButton(_t("update_now"))
+        self._update_btn.setVisible(False)
+        self._update_btn.setStyleSheet(
+            "QPushButton { background: #2a82da; color: white; border: none; }"
+            "QPushButton:hover { background: #3a92ea; }"
+        )
+        self._update_btn.clicked.connect(self._run_update)
+        update_btn_row.addWidget(self._update_btn)
+        update_btn_row.addStretch()
+        update_layout.addLayout(update_btn_row)
+
+        self._update_status = QLabel("")
+        self._update_status.setStyleSheet("color: #aaa; font-size: 11px;")
+        self._update_status.setWordWrap(True)
+        update_layout.addWidget(self._update_status)
+        layout.addWidget(update_group)
+
         # --- Buttons ---
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
-        save_btn = QPushButton("Save")
+        save_btn = QPushButton(_t("save"))
         save_btn.clicked.connect(self._save)
-        cancel_btn = QPushButton("Cancel")
+        cancel_btn = QPushButton(_t("cancel"))
         cancel_btn.clicked.connect(self.reject)
         btn_layout.addWidget(save_btn)
         btn_layout.addWidget(cancel_btn)
         layout.addLayout(btn_layout)
+
+    def _check_update(self):
+        self._check_btn.setEnabled(False)
+        self._check_btn.setText(_t("checking"))
+        self._update_status.setText("")
+
+        def _do_check():
+            latest = _fetch_latest_version()
+            local = _read_local_version()
+            self._check_done_signal.emit(local, latest)
+
+        threading.Thread(target=_do_check, daemon=True).start()
+
+    def _on_check_done(self, local: str, latest: str | None):
+        self._check_btn.setEnabled(True)
+        self._check_btn.setText(_t("check_updates"))
+        if latest is None:
+            self._update_status.setText(_t("check_fail"))
+            return
+        self._ver_label.setText(_t("ver_both", local=local, latest=latest))
+        if latest == local:
+            self._update_status.setText(_t("up_to_date"))
+            self._update_btn.setVisible(False)
+        else:
+            self._update_status.setText(_t("new_version", v=latest))
+            self._update_btn.setVisible(True)
+            self._latest = latest
+
+    def _run_update(self):
+        self._update_btn.setEnabled(False)
+        self._update_status.setText(_t("updating"))
+
+        def _do_update():
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            git_dir = os.path.join(script_dir, ".git")
+            is_source = os.path.isdir(git_dir) or os.path.isdir(os.path.join(os.path.dirname(script_dir), ".git"))
+
+            try:
+                if is_source:
+                    work_dir = script_dir if os.path.isdir(git_dir) else os.path.dirname(script_dir)
+                    result = subprocess.run(
+                        ["git", "pull", "--rebase"],
+                        cwd=work_dir, capture_output=True, text=True, timeout=30,
+                    )
+                    ok = result.returncode == 0
+                    msg = result.stdout.strip() or result.stderr.strip()
+                else:
+                    result = subprocess.run(
+                        [sys.executable, "-m", "pip", "install", "--upgrade", _PYPI_PACKAGE],
+                        capture_output=True, text=True, timeout=60,
+                    )
+                    ok = result.returncode == 0
+                    msg = _t("upgrade_ok") if ok else (result.stderr.strip() or result.stdout.strip())
+            except Exception as e:
+                ok = False
+                msg = str(e)
+
+            self._update_done_signal.emit(ok, msg)
+
+        threading.Thread(target=_do_update, daemon=True).start()
+
+    def _on_update_done(self, ok: bool, msg: str):
+        self._update_btn.setEnabled(True)
+        if ok:
+            self._update_status.setText(_t("update_ok_msg", msg=msg))
+            self._update_btn.setVisible(False)
+        else:
+            self._update_status.setText(_t("update_fail", e=msg))
 
     def _save(self):
         self.settings.setValue("use_chinese", self.default_chinese.isChecked())
         self.settings.setValue("reload_rules", self.default_rules.isChecked())
         lines = [l.strip() for l in self.replies_list.toPlainText().split("\n") if l.strip()]
         self.settings.setValue("quick_replies", lines)
+        lang = self._lang_combo.currentData()
+        self.settings.setValue("ui_language", lang if lang else "")
         self.accept()
 
 
@@ -150,7 +436,7 @@ class ImagePreviewDialog(QDialog):
     """Full-size image preview dialog, click or press Escape to close."""
     def __init__(self, pixmap: QPixmap, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Image Preview")
+        self.setWindowTitle(_t("preview_title"))
         self.setWindowFlags(self.windowFlags() | Qt.WindowMaximizeButtonHint)
         self.setStyleSheet("QDialog { background: #1a1a1a; }")
 
@@ -193,7 +479,7 @@ class ScreenshotThumbnail(QWidget):
         thumb_label.setPixmap(scaled)
         thumb_label.setAlignment(Qt.AlignCenter)
         thumb_label.setCursor(Qt.PointingHandCursor)
-        thumb_label.setToolTip("Click to preview full image")
+        thumb_label.setToolTip(_t("preview_tip"))
         thumb_label.setStyleSheet("border: 1px solid #555; border-radius: 4px; padding: 2px;")
         thumb_label.mousePressEvent = lambda _: self._preview()
         layout.addWidget(thumb_label)
@@ -215,6 +501,8 @@ class ScreenshotThumbnail(QWidget):
         dialog.exec()
 
 class FeedbackUI(QMainWindow):
+    _update_available = Signal(str)
+
     def __init__(self, prompt: str, predefined_options: list[str] | None = None, window_id: str = "0"):
         super().__init__()
         self.setAcceptDrops(True)
@@ -222,12 +510,17 @@ class FeedbackUI(QMainWindow):
         self.predefined_options = predefined_options or []
         self.feedback_result = None
         self.screenshots: list[QPixmap] = []
+        self._latest_version: str | None = None
+        self._window_id = window_id
 
         self._local_version = _read_local_version()
         title = f"Interactive Feedback MCP v{self._local_version}"
         if window_id and window_id != "0":
             title += f" #{window_id}"
         self.setWindowTitle(title)
+
+        self._update_available.connect(self._on_update_available)
+        threading.Thread(target=self._bg_check_update, daemon=True).start()
         script_dir = os.path.dirname(os.path.abspath(__file__))
         icon_path = os.path.join(script_dir, "images", "feedback.png")
         if os.path.exists(icon_path):
@@ -280,6 +573,18 @@ class FeedbackUI(QMainWindow):
             except Exception:
                 pass
 
+    def _bg_check_update(self):
+        latest = _fetch_latest_version()
+        if latest and latest != self._local_version:
+            self._update_available.emit(latest)
+
+    def _on_update_available(self, version: str):
+        self._latest_version = version
+        title = f"Interactive Feedback MCP v{self._local_version}  ⬆ v{version} available"
+        if self._window_id and self._window_id != "0":
+            title += f"  #{self._window_id}"
+        self.setWindowTitle(title)
+
     def _create_ui(self):
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
@@ -289,30 +594,31 @@ class FeedbackUI(QMainWindow):
         feedback_layout = QVBoxLayout(self.feedback_group)
 
         prompt_header = QHBoxLayout()
-        prompt_title = QLabel("Message:")
+        prompt_title = QLabel(_t("message"))
         prompt_title.setStyleSheet("font-weight: bold; color: #ccc; font-size: 12px;")
         prompt_header.addWidget(prompt_title)
         prompt_header.addStretch()
-        copy_btn = QPushButton("📋 Copy")
+        copy_btn = QPushButton(_t("copy"))
         copy_btn.setFixedHeight(24)
         copy_btn.setStyleSheet(
             "QPushButton { color: #aaa; background: transparent; "
             "border: 1px solid #555; border-radius: 3px; font-size: 11px; padding: 0 8px; }"
             "QPushButton:hover { background: rgba(42,130,218,0.25); color: #fff; }"
         )
-        copy_btn.setToolTip("Copy message to clipboard")
+        copy_btn.setToolTip(_t("copy_tip"))
         copy_btn.clicked.connect(lambda: QApplication.clipboard().setText(self.prompt))
         prompt_header.addWidget(copy_btn)
         feedback_layout.addLayout(prompt_header)
 
         self.description_text = QTextEdit()
-        self.description_text.setPlainText(self.prompt)
+        self.description_text.setMarkdown(self.prompt)
         self.description_text.setReadOnly(True)
         self.description_text.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.description_text.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.description_text.setStyleSheet(
             "QTextEdit { background: #2a2a2a; border: 1px solid #555; "
             "border-radius: 4px; padding: 8px; color: #e0e0e0; font-size: 13px; }"
+            "QTextEdit code { background: #1a1a1a; color: #e8a040; padding: 1px 4px; border-radius: 2px; }"
         )
         self.description_text.document().setDocumentMargin(4)
         font_h = self.description_text.fontMetrics().height()
@@ -344,7 +650,7 @@ class FeedbackUI(QMainWindow):
         row_height = font_metrics.height()
         padding = self.feedback_text.contentsMargins().top() + self.feedback_text.contentsMargins().bottom() + 5
         self.feedback_text.setMinimumHeight(5 * row_height + padding)
-        self.feedback_text.setPlaceholderText("Enter your feedback here (Ctrl+Enter to submit, Ctrl+V to paste screenshot)")
+        self.feedback_text.setPlaceholderText(_t("placeholder"))
         feedback_layout.addWidget(self.feedback_text, stretch=1)
 
         # --- Screenshot section ---
@@ -353,14 +659,14 @@ class FeedbackUI(QMainWindow):
         screenshot_main_layout.setContentsMargins(0, 5, 0, 5)
 
         btn_layout = QHBoxLayout()
-        capture_btn = QPushButton("📷 Capture Screen")
-        capture_btn.setToolTip("Minimize this window and capture the full screen")
+        capture_btn = QPushButton(_t("capture"))
+        capture_btn.setToolTip(_t("capture_tip"))
         capture_btn.clicked.connect(self._capture_screen)
-        paste_btn = QPushButton("📋 Paste Clipboard")
-        paste_btn.setToolTip("Paste an image from clipboard (you can also use Ctrl+V)")
+        paste_btn = QPushButton(_t("paste"))
+        paste_btn.setToolTip(_t("paste_tip"))
         paste_btn.clicked.connect(self._paste_from_clipboard)
-        browse_btn = QPushButton("📁 Browse...")
-        browse_btn.setToolTip("Browse for image files")
+        browse_btn = QPushButton(_t("browse"))
+        browse_btn.setToolTip(_t("browse_tip"))
         browse_btn.clicked.connect(self._browse_image)
         btn_layout.addWidget(capture_btn)
         btn_layout.addWidget(paste_btn)
@@ -391,14 +697,14 @@ class FeedbackUI(QMainWindow):
         feedback_layout.addWidget(screenshot_section)
 
         toggle_bar = QHBoxLayout()
-        self.chinese_toggle = QCheckBox("使用中文")
-        self.chinese_toggle.setToolTip("Auto-append Chinese language hint to feedback")
+        self.chinese_toggle = QCheckBox(_t("use_chinese"))
+        self.chinese_toggle.setToolTip(_t("use_chinese_tip"))
         self.chinese_toggle.setChecked(self.settings.value("use_chinese", True, type=bool))
         self.chinese_toggle.setStyleSheet("QCheckBox { color: #aaa; font-size: 11px; }")
         toggle_bar.addWidget(self.chinese_toggle)
 
-        self.reload_rules_toggle = QCheckBox("重新读取Rules")
-        self.reload_rules_toggle.setToolTip("Remind AI to re-read Cursor Rules")
+        self.reload_rules_toggle = QCheckBox(_t("reload_rules"))
+        self.reload_rules_toggle.setToolTip(_t("reload_rules_tip"))
         self.reload_rules_toggle.setChecked(self.settings.value("reload_rules", False, type=bool))
         self.reload_rules_toggle.setStyleSheet("QCheckBox { color: #aaa; font-size: 11px; }")
         toggle_bar.addWidget(self.reload_rules_toggle)
@@ -407,8 +713,8 @@ class FeedbackUI(QMainWindow):
         feedback_layout.addLayout(toggle_bar)
 
         bottom_bar = QHBoxLayout()
-        quick_reply_btn = QPushButton("⚡ Quick Reply")
-        quick_reply_btn.setToolTip("Choose from preset quick replies")
+        quick_reply_btn = QPushButton(_t("quick_reply"))
+        quick_reply_btn.setToolTip(_t("quick_reply_tip"))
         quick_reply_btn.setStyleSheet(
             "QPushButton { color: #e0a030; background: transparent; "
             "border: 1px solid #555; border-radius: 3px; padding: 4px 12px; }"
@@ -419,7 +725,7 @@ class FeedbackUI(QMainWindow):
 
         settings_btn = QPushButton("⚙")
         settings_btn.setFixedSize(30, 30)
-        settings_btn.setToolTip("Settings")
+        settings_btn.setToolTip(_t("settings_tip"))
         settings_btn.setStyleSheet(
             "QPushButton { color: #aaa; background: transparent; "
             "border: 1px solid #555; border-radius: 3px; font-size: 14px; }"
@@ -430,7 +736,7 @@ class FeedbackUI(QMainWindow):
 
         bottom_bar.addStretch()
 
-        submit_button = QPushButton("&Send Feedback")
+        submit_button = QPushButton(_t("send"))
         submit_button.clicked.connect(self._submit_feedback)
         bottom_bar.addWidget(submit_button)
 
@@ -493,7 +799,7 @@ class FeedbackUI(QMainWindow):
             action.triggered.connect(lambda checked, t=text: self._apply_quick_reply(t))
             menu.addAction(action)
         menu.addSeparator()
-        submit_action = QAction("── Submit directly ──", menu)
+        submit_action = QAction(_t("submit_directly"), menu)
         submit_action.setEnabled(False)
         menu.addAction(submit_action)
         for text in replies:
@@ -540,8 +846,8 @@ class FeedbackUI(QMainWindow):
 
     def _browse_image(self):
         file_paths, _ = QFileDialog.getOpenFileNames(
-            self, "Select Images", "",
-            "Images (*.png *.jpg *.jpeg *.bmp *.gif *.webp);;All Files (*)"
+            self, _t("select_images"), "",
+            _t("image_filter"),
         )
         for path in file_paths:
             pixmap = QPixmap(path)
@@ -576,7 +882,7 @@ class FeedbackUI(QMainWindow):
         self.screenshots_scroll.setVisible(has_screenshots)
         self.screenshot_count_label.setVisible(has_screenshots)
         if has_screenshots:
-            self.screenshot_count_label.setText(f"{len(self.screenshots)} screenshot(s) attached")
+            self.screenshot_count_label.setText(_t("screenshots_count", n=len(self.screenshots)))
 
     @staticmethod
     def _pixmap_to_base64(pixmap: QPixmap) -> str:

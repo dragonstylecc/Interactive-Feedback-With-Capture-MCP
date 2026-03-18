@@ -1,10 +1,21 @@
 [project]
 name = "interactive-feedback-with-capture"
-version = "0.3.1"
+version = "0.4.0"
 description = "MCP server for interactive user feedback with screenshot capture in AI-assisted development tools."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
+keywords = ["mcp", "feedback", "ai", "cursor", "interactive"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: User Interfaces",
+]
 dependencies = [
     "fastmcp>=3.0.0",
     "pyside6>=6.8.2.1",
@@ -13,3 +24,32 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/dragonstylecc/Interactive-Feedback-With-Capture-MCP"
 Repository = "https://github.com/dragonstylecc/Interactive-Feedback-With-Capture-MCP"
+Issues = "https://github.com/dragonstylecc/Interactive-Feedback-With-Capture-MCP/issues"
+
+[project.scripts]
+interactive-feedback-with-capture = "interactive_feedback_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["interactive_feedback_mcp"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"server.py" = "interactive_feedback_mcp/server.py"
+"feedback_ui.py" = "interactive_feedback_mcp/feedback_ui.py"
+"VERSION" = "interactive_feedback_mcp/VERSION"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "server.py",
+    "feedback_ui.py",
+    "VERSION",
+    "interactive_feedback_mcp/",
+    "README.md",
+    "README_EN.md",
+    "LICENSE",
+    "pyproject.toml",
+    ".cursor/rules/mcp-feedback.mdc",
+]
