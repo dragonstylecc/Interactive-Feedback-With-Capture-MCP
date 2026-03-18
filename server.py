@@ -278,8 +278,85 @@ async def interactive_feedback(
 
     return contents
 
+_MCP_CONFIG = {
+    "interactive-feedback": {
+        "command": "uvx",
+        "args": ["interactive-feedback-with-capture"],
+        "timeout": 3600,
+        "autoApprove": ["interactive_feedback"],
+    }
+}
+
+_RULES_CONTENT = """\
+---
+description: Rules for interactive_feedback MCP tool usage - when to call, how to handle failures, and timeout management.
+globs:
+alwaysApply: true
+---
+
+# Interactive Feedback MCP Rules
+
+## Core Rules
+
+1. If a request or instruction is unclear, use the `interactive_feedback` tool to ask the user clarifying questions before proceeding. Do not make assumptions.
+2. Provide predefined options via the `interactive_feedback` MCP tool whenever possible to facilitate quick decision-making.
+3. Each time you are about to complete a user request, call the `interactive_feedback` tool to ask for user feedback before finalizing. If the feedback is empty, you may end the request and must not call the tool in a loop.
+
+## Fallback
+
+If the `interactive_feedback` tool call fails (timeout, connection error, or UI launch failure), use the built-in `AskQuestion` tool as a fallback.
+
+## Timeout Handling
+
+- The feedback window may remain open for extended periods while the user reviews or provides detailed feedback.
+- If the tool returns a message containing `[心跳]`, it means the soft timeout was reached. Re-invoke `interactive_feedback` to continue the conversation.
+- Do not assume a timeout means the user is unresponsive — they may simply need more time.
+"""
+
+
+def _install():
+    """Auto-configure Cursor MCP settings and Rules files."""
+    home = os.path.expanduser("~")
+    cursor_dir = os.path.join(home, ".cursor")
+
+    # --- MCP config ---
+    mcp_path = os.path.join(cursor_dir, "mcp.json")
+    if os.path.exists(mcp_path):
+        with open(mcp_path, "r", encoding="utf-8") as f:
+            try:
+                config = json.load(f)
+            except json.JSONDecodeError:
+                config = {}
+    else:
+        os.makedirs(cursor_dir, exist_ok=True)
+        config = {}
+
+    if "mcpServers" not in config:
+        config["mcpServers"] = {}
+    config["mcpServers"].update(_MCP_CONFIG)
+
+    with open(mcp_path, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+    print(f"✅ MCP config updated: {mcp_path}")
+
+    # --- Rules file ---
+    rules_dir = os.path.join(cursor_dir, "rules")
+    os.makedirs(rules_dir, exist_ok=True)
+    rules_path = os.path.join(rules_dir, "mcp-feedback.mdc")
+    with open(rules_path, "w", encoding="utf-8") as f:
+        f.write(_RULES_CONTENT)
+    print(f"✅ Rules file installed: {rules_path}")
+
+    print("\n🎉 Installation complete! Restart Cursor to activate.")
+    print("   MCP tool: interactive_feedback")
+    print("   Rules: always-apply mcp-feedback.mdc")
+
+
 def main():
     """Entry point for uvx / python -m invocation."""
+    if len(sys.argv) > 1 and sys.argv[1] == "install":
+        _install()
+        return
     mcp.run(transport="stdio", log_level="ERROR")
 
 

@@ -141,11 +141,20 @@
 
 ## 📦 安装与配置
 
-### 方式一：uvx 一键运行（推荐）
+### 方式一：一键安装（推荐）
 
-无需克隆仓库，安装 [uv](https://github.com/astral-sh/uv) 后直接配置即可。
+安装 [uv](https://github.com/astral-sh/uv) 后运行：
 
-在 `mcp.json`（Cursor）或 `claude_desktop_config.json`（Claude Desktop）中添加：
+```bash
+uvx interactive-feedback-with-capture install
+```
+
+自动完成：
+- 更新 `~/.cursor/mcp.json`（Cursor 全局 MCP 配置）
+- 安装 `~/.cursor/rules/mcp-feedback.mdc`（Cursor Rules 文件）
+- 重启 Cursor 即可使用
+
+也可以手动配置 `mcp.json`（Cursor）或 `claude_desktop_config.json`（Claude Desktop）：
 
 ```json
 {
@@ -192,19 +201,15 @@ git clone https://github.com/dragonstylecc/Interactive-Feedback-With-Capture-MCP
 
 > **前置要求：** Python 3.11+，[uv](https://github.com/astral-sh/uv)（Windows: `pip install uv`，Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`，macOS: `brew install uv`）
 
-### Cursor Rules 文件（推荐）
+### Cursor Rules（一键安装已自动配置）
 
-   项目自带开箱即用的 Rules 文件 `.cursor/rules/mcp-feedback.mdc`，复制到你的项目中即可：
+如果使用方式一（`install` 命令）安装，Rules 已自动写入 `~/.cursor/rules/mcp-feedback.mdc`。
 
-   ```bash
-   cp -r /path/to/interactive-feedback-mcp/.cursor/rules/ /your/project/.cursor/rules/
-   ```
+手动配置方式：在 Cursor Settings > Rules > User Rules 中添加：
 
-   或者在 Cursor Settings > Rules > User Rules 中手动添加以下内容：
-
-   > 如果要求或指令不明确，在继续操作之前使用interactive_feedback工具向用户询问澄清问题，不要做出假设。
-   > 尽可能通过interactive_feedback MCP工具向用户提供预定义的选项，以促进快速决策。
-   > 每当即将完成用户请求时，调用interactive_feedback工具在结束流程前请求用户反馈。如果反馈为空，则可以结束请求，并且不要循环调用该工具，如果该工具调用失败时，使用内置 `AskQuestion` 工具。
+> 如果要求或指令不明确，在继续操作之前使用interactive_feedback工具向用户询问澄清问题，不要做出假设。
+> 尽可能通过interactive_feedback MCP工具向用户提供预定义的选项，以促进快速决策。
+> 每当即将完成用户请求时，调用interactive_feedback工具在结束流程前请求用户反馈。如果反馈为空，则可以结束请求，并且不要循环调用该工具，如果该工具调用失败时，使用内置 `AskQuestion` 工具。
 
 ## 📸 截图与图片附件
 

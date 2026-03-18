@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.4.1
+- **One-click install** — `uvx interactive-feedback-with-capture install` auto-configures Cursor MCP and Rules
+- Docs: Simplified README install/config sections
+
 ## v0.4.0
 
 ### New Features

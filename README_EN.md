@@ -141,9 +141,20 @@ This server exposes the following tool via the MCP protocol:
 
 ## 📦 Installation & Configuration
 
-### Option 1: uvx one-liner (Recommended)
+### Option 1: One-click install (Recommended)
 
-No need to clone the repo. Install [uv](https://github.com/astral-sh/uv), then add to `mcp.json` (Cursor) or `claude_desktop_config.json` (Claude Desktop):
+Install [uv](https://github.com/astral-sh/uv), then run:
+
+```bash
+uvx interactive-feedback-with-capture install
+```
+
+This auto-configures:
+- `~/.cursor/mcp.json` (Cursor global MCP settings)
+- `~/.cursor/rules/mcp-feedback.mdc` (Cursor Rules file)
+- Restart Cursor to activate
+
+Or manually add to `mcp.json` (Cursor) or `claude_desktop_config.json` (Claude Desktop):
 
 ```json
 {
@@ -190,19 +201,15 @@ git clone https://github.com/dragonstylecc/Interactive-Feedback-With-Capture-MCP
 
 > **Prerequisites:** Python 3.11+, [uv](https://github.com/astral-sh/uv) (Windows: `pip install uv`, Linux: `curl -LsSf https://astral.sh/uv/install.sh | sh`, macOS: `brew install uv`)
 
-### Cursor Rules file (recommended)
+### Cursor Rules (auto-configured by install)
 
-   The project includes an out-of-box Rules file `.cursor/rules/mcp-feedback.mdc`. Copy it to your project:
+If you used Option 1 (`install` command), Rules are already at `~/.cursor/rules/mcp-feedback.mdc`.
 
-   ```bash
-   cp -r /path/to/interactive-feedback-mcp/.cursor/rules/ /your/project/.cursor/rules/
-   ```
+Manual setup: Add to Cursor Settings > Rules > User Rules:
 
-   Or manually add to Cursor Settings > Rules > User Rules:
-
-   > If a request or instruction is unclear, use the interactive_feedback tool to ask the user clarifying questions before proceeding. Do not make assumptions.
-   > Provide predefined options to the user via the interactive_feedback MCP tool whenever possible to facilitate quick decision-making.
-   > Each time you are about to complete a user request, call the interactive_feedback tool to ask for user feedback before finalizing the process. If the feedback is empty, you may end the request and must not call the tool in a loop. If the tool call fails, use the built-in AskQuestion tool.
+> If a request or instruction is unclear, use the interactive_feedback tool to ask the user clarifying questions before proceeding. Do not make assumptions.
+> Provide predefined options to the user via the interactive_feedback MCP tool whenever possible to facilitate quick decision-making.
+> Each time you are about to complete a user request, call the interactive_feedback tool to ask for user feedback before finalizing the process. If the feedback is empty, you may end the request and must not call the tool in a loop. If the tool call fails, use the built-in AskQuestion tool.
 
 ## 📸 Screenshots & Image Attachments
 
