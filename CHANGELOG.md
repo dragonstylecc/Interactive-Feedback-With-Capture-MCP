@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.2
+- **Built-in docs viewer** — New `📖 详细说明/Docs` button in the feedback window bottom bar
+- Opens a local README viewer dialog with Markdown rendering (dark theme, no internet required)
+- Auto-selects Chinese/English README based on UI language setting
+- Includes "View on GitHub" button for online access
+- README.md and README_EN.md are now bundled into the wheel package
+
 ## v0.4.1
 - **One-click install** — `uvx interactive-feedback-with-capture install` auto-configures Cursor MCP and Rules
 - Docs: Simplified README install/config sections
