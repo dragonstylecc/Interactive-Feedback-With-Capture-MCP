@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.4.4
+- **Fix in-app update for uvx users** — Try `uv tool upgrade` first, fall back to `pip install --upgrade`; fixes "No module named pip" error in uvx environments
+
 ## v0.4.3
 - **Fix update check** — Added Chinese PyPI mirror (Tsinghua) as fallback, increased timeout from 3s to 8s for better reliability in China
 
