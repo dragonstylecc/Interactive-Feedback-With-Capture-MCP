@@ -40,9 +40,10 @@ _GITHUB_REPO = "dragonstylecc/Interactive-Feedback-With-Capture-MCP"
 
 
 def _fetch_latest_version() -> str | None:
-    """Check latest version from PyPI, fallback to GitHub releases."""
+    """Check latest version from PyPI (with CN mirror fallback), then GitHub releases."""
     for url in (
         f"https://pypi.org/pypi/{_PYPI_PACKAGE}/json",
+        f"https://pypi.tuna.tsinghua.edu.cn/pypi/{_PYPI_PACKAGE}/json",
         f"https://api.github.com/repos/{_GITHUB_REPO}/releases/latest",
     ):
         try:
@@ -50,7 +51,7 @@ def _fetch_latest_version() -> str | None:
                 "Accept": "application/json",
                 "User-Agent": "interactive-feedback-mcp",
             })
-            with urllib.request.urlopen(req, timeout=3) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 data = json.loads(resp.read())
             if "info" in data:
                 return data["info"]["version"]

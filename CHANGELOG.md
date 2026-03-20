@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.4.3
+- **Fix update check** — Added Chinese PyPI mirror (Tsinghua) as fallback, increased timeout from 3s to 8s for better reliability in China
+
 ## v0.4.2
 - **Built-in docs viewer** — New `📖 详细说明/Docs` button in the feedback window bottom bar
 - Opens a local README viewer dialog with Markdown rendering (dark theme, no internet required)
