@@ -12,6 +12,13 @@ alwaysApply: true
 2. Provide predefined options via the `interactive_feedback` MCP tool whenever possible to facilitate quick decision-making.
 3. Each time you are about to complete a user request, call the `interactive_feedback` tool to ask for user feedback before finalizing. If the feedback is empty, you may end the request and must not call the tool in a loop.
 
+## Retry on Intermittent Failures
+
+Cursor has a known bug where `CallMcpTool` occasionally reports "Tool not found" even though the MCP server is running. If this happens:
+
+1. Retry the `interactive_feedback` call up to **2 times** before giving up.
+2. If all retries fail, fall back to the built-in `AskQuestion` tool.
+
 ## Fallback
 
 If the `interactive_feedback` tool call fails (timeout, connection error, or UI launch failure), use the built-in `AskQuestion` tool as a fallback.

@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.4.6
+- **Retry on intermittent failures** — Cursor Rules now instruct AI to retry `interactive_feedback` up to 2 times on "Tool not found" errors (known Cursor bug)
+
 ## v0.4.5
 - **Fix in-app update for uvx users** — Try `uv tool upgrade` → `uv cache clean` → `pip install --upgrade`; fixes "No module named pip" in uvx environments
 - **Always-latest config** — MCP config now uses `@latest` suffix to ensure uvx fetches newest version on every restart
