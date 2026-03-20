@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.4.7
+- **Robust in-app update** — Restructured update logic: try `uv tool upgrade` → `pip install --upgrade` → `uv cache clean` fallback chain; all with shorter timeouts to prevent hangs
+
 ## v0.4.6
 - **Retry on intermittent failures** — Cursor Rules now instruct AI to retry `interactive_feedback` up to 2 times on "Tool not found" errors (known Cursor bug)
 

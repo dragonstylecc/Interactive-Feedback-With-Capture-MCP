@@ -480,26 +480,33 @@ class SettingsDialog(QDialog):
                     ok = result.returncode == 0
                     msg = result.stdout.strip() or result.stderr.strip()
                 else:
-                    update_cmds = [
-                        (["uv", "tool", "upgrade", _PYPI_PACKAGE], False),
-                        (["uv", "cache", "clean", _PYPI_PACKAGE], True),
-                        ([sys.executable, "-m", "pip", "install", "--upgrade", _PYPI_PACKAGE], False),
-                    ]
                     ok, msg = False, ""
-                    for cmd, is_cache_clean in update_cmds:
+                    for cmd in (
+                        ["uv", "tool", "upgrade", _PYPI_PACKAGE],
+                        [sys.executable, "-m", "pip", "install", "--upgrade", _PYPI_PACKAGE],
+                    ):
                         try:
-                            result = subprocess.run(
-                                cmd, capture_output=True, text=True, timeout=60,
-                            )
-                            ok = result.returncode == 0
-                            if ok:
-                                msg = _t("upgrade_ok")
+                            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+                            if result.returncode == 0:
+                                ok, msg = True, _t("upgrade_ok")
                                 break
-                            msg = result.stderr.strip() or result.stdout.strip()
                         except FileNotFoundError:
                             continue
-                        except Exception as e:
-                            msg = str(e)
+                        except Exception:
+                            pass
+
+                    if not ok:
+                        try:
+                            subprocess.run(
+                                ["uv", "cache", "clean", _PYPI_PACKAGE],
+                                capture_output=True, text=True, timeout=15,
+                            )
+                            ok, msg = True, _t("upgrade_ok")
+                        except Exception:
+                            pass
+
+                    if not ok:
+                        msg = _t("restart_hint")
             except Exception as e:
                 ok = False
                 msg = str(e)
