@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.4.5
+- **Fix in-app update for uvx users** — Try `uv tool upgrade` → `uv cache clean` → `pip install --upgrade`; fixes "No module named pip" in uvx environments
+- **Always-latest config** — MCP config now uses `@latest` suffix to ensure uvx fetches newest version on every restart
+- **Docs** — Updated README examples with `@latest` in MCP args
+
 ## v0.4.4
 - **Fix in-app update for uvx users** — Try `uv tool upgrade` first, fall back to `pip install --upgrade`; fixes "No module named pip" error in uvx environments
 

@@ -480,20 +480,22 @@ class SettingsDialog(QDialog):
                     ok = result.returncode == 0
                     msg = result.stdout.strip() or result.stderr.strip()
                 else:
-                    cmds = [
-                        ["uv", "tool", "upgrade", _PYPI_PACKAGE],
-                        [sys.executable, "-m", "pip", "install", "--upgrade", _PYPI_PACKAGE],
+                    update_cmds = [
+                        (["uv", "tool", "upgrade", _PYPI_PACKAGE], False),
+                        (["uv", "cache", "clean", _PYPI_PACKAGE], True),
+                        ([sys.executable, "-m", "pip", "install", "--upgrade", _PYPI_PACKAGE], False),
                     ]
                     ok, msg = False, ""
-                    for cmd in cmds:
+                    for cmd, is_cache_clean in update_cmds:
                         try:
                             result = subprocess.run(
                                 cmd, capture_output=True, text=True, timeout=60,
                             )
                             ok = result.returncode == 0
-                            msg = _t("upgrade_ok") if ok else (result.stderr.strip() or result.stdout.strip())
                             if ok:
+                                msg = _t("upgrade_ok")
                                 break
+                            msg = result.stderr.strip() or result.stdout.strip()
                         except FileNotFoundError:
                             continue
                         except Exception as e:

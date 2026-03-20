@@ -161,7 +161,7 @@ uvx interactive-feedback-with-capture install
   "mcpServers": {
     "interactive-feedback": {
       "command": "uvx",
-      "args": ["interactive-feedback-with-capture"],
+      "args": ["interactive-feedback-with-capture@latest"],
       "timeout": 3600,
       "autoApprove": [
         "interactive_feedback"

@@ -281,7 +281,7 @@ async def interactive_feedback(
 _MCP_CONFIG = {
     "interactive-feedback": {
         "command": "uvx",
-        "args": ["interactive-feedback-with-capture"],
+        "args": ["interactive-feedback-with-capture@latest"],
         "timeout": 3600,
         "autoApprove": ["interactive_feedback"],
     }

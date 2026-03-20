@@ -161,7 +161,7 @@ Or manually add to `mcp.json` (Cursor) or `claude_desktop_config.json` (Claude D
   "mcpServers": {
     "interactive-feedback": {
       "command": "uvx",
-      "args": ["interactive-feedback-with-capture"],
+      "args": ["interactive-feedback-with-capture@latest"],
       "timeout": 3600,
       "autoApprove": [
         "interactive_feedback"
