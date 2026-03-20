@@ -18,8 +18,8 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QCheckBox, QTextEdit, QGroupBox,
     QFrame, QScrollArea, QFileDialog, QSizePolicy, QDialog, QMenu, QComboBox,
 )
-from PySide6.QtCore import Qt, Signal, QTimer, QSettings, QByteArray, QBuffer, QIODevice
-from PySide6.QtGui import QIcon, QKeyEvent, QPalette, QColor, QPixmap, QImage, QAction
+from PySide6.QtCore import Qt, Signal, QTimer, QSettings, QByteArray, QBuffer, QIODevice, QUrl
+from PySide6.QtGui import QIcon, QKeyEvent, QPalette, QColor, QPixmap, QImage, QAction, QDesktopServices
 
 class FeedbackResult(TypedDict):
     interactive_feedback: str
@@ -125,6 +125,12 @@ _I18N = {
         "language": "界面语言",
         "lang_auto": "自动检测",
         "lang_restart": "⚠ 语言切换将在下次打开时生效",
+        "docs": "📖 详细说明",
+        "docs_tip": "查看项目详细说明文档",
+        "docs_title": "项目说明",
+        "docs_github": "🌐 在 GitHub 上查看",
+        "docs_close": "关闭",
+        "docs_not_found": "未找到本地文档，请访问 GitHub 查看：",
     },
     "en": {
         "message": "Message:",
@@ -178,6 +184,12 @@ _I18N = {
         "language": "UI Language",
         "lang_auto": "Auto detect",
         "lang_restart": "⚠ Language change takes effect on next launch",
+        "docs": "📖 Docs",
+        "docs_tip": "View project documentation",
+        "docs_title": "Documentation",
+        "docs_github": "🌐 View on GitHub",
+        "docs_close": "Close",
+        "docs_not_found": "Local docs not found. Visit GitHub:",
     },
 }
 
@@ -239,6 +251,73 @@ class FeedbackTextEdit(QTextEdit):
             super().keyPressEvent(event)
         else:
             super().keyPressEvent(event)
+
+class DocsDialog(QDialog):
+    """Dialog for viewing local README documentation."""
+
+    _GITHUB_URL = f"https://github.com/{_GITHUB_REPO}#readme"
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(_t("docs_title"))
+        self.setMinimumSize(700, 550)
+        self.setStyleSheet("QDialog { background: #2a2a2a; color: #e0e0e0; }")
+
+        layout = QVBoxLayout(self)
+
+        readme_path = self._find_readme()
+        if readme_path:
+            viewer = QTextEdit()
+            viewer.setReadOnly(True)
+            with open(readme_path, "r", encoding="utf-8") as f:
+                viewer.setMarkdown(f.read())
+            viewer.setStyleSheet(
+                "QTextEdit { background: #1e1e1e; color: #e0e0e0; border: 1px solid #555; "
+                "border-radius: 4px; padding: 12px; font-size: 13px; }"
+                "QTextEdit code { background: #1a1a1a; color: #e8a040; padding: 1px 4px; border-radius: 2px; }"
+            )
+            layout.addWidget(viewer, stretch=1)
+        else:
+            hint = QLabel(_t("docs_not_found"))
+            hint.setStyleSheet("color: #ccc; font-size: 13px; padding: 20px;")
+            hint.setWordWrap(True)
+            layout.addWidget(hint)
+
+        btn_row = QHBoxLayout()
+        github_btn = QPushButton(_t("docs_github"))
+        github_btn.setStyleSheet(
+            "QPushButton { background: #2a82da; color: white; border: none; "
+            "border-radius: 3px; padding: 6px 16px; }"
+            "QPushButton:hover { background: #3a92ea; }"
+        )
+        github_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(self._GITHUB_URL)))
+        btn_row.addWidget(github_btn)
+        btn_row.addStretch()
+
+        close_btn = QPushButton(_t("docs_close"))
+        close_btn.setStyleSheet(
+            "QPushButton { background: #444; color: #e0e0e0; border: 1px solid #555; "
+            "border-radius: 3px; padding: 6px 16px; }"
+            "QPushButton:hover { background: rgba(42,130,218,0.3); }"
+        )
+        close_btn.clicked.connect(self.close)
+        btn_row.addWidget(close_btn)
+        layout.addLayout(btn_row)
+
+    @staticmethod
+    def _find_readme() -> str | None:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        suffix = "_EN.md" if _LANG != "zh" else ".md"
+        for candidate in (
+            os.path.join(script_dir, f"README{suffix}"),
+            os.path.join(script_dir, "README.md"),
+            os.path.join(os.path.dirname(script_dir), f"README{suffix}"),
+            os.path.join(os.path.dirname(script_dir), "README.md"),
+        ):
+            if os.path.isfile(candidate):
+                return candidate
+        return None
+
 
 class SettingsDialog(QDialog):
     """Settings dialog for managing quick replies and default toggles."""
@@ -734,6 +813,16 @@ class FeedbackUI(QMainWindow):
         settings_btn.clicked.connect(self._open_settings)
         bottom_bar.addWidget(settings_btn)
 
+        docs_btn = QPushButton(_t("docs"))
+        docs_btn.setToolTip(_t("docs_tip"))
+        docs_btn.setStyleSheet(
+            "QPushButton { color: #aaa; background: transparent; "
+            "border: 1px solid #555; border-radius: 3px; padding: 4px 10px; font-size: 11px; }"
+            "QPushButton:hover { background: rgba(42,130,218,0.25); color: #fff; }"
+        )
+        docs_btn.clicked.connect(self._open_docs)
+        bottom_bar.addWidget(docs_btn)
+
         bottom_bar.addStretch()
 
         submit_button = QPushButton(_t("send"))
@@ -761,6 +850,9 @@ class FeedbackUI(QMainWindow):
                     pixmap = QPixmap(path)
                     if not pixmap.isNull():
                         self._add_screenshot(pixmap)
+
+    def _open_docs(self):
+        DocsDialog(self).exec()
 
     def _open_settings(self):
         dialog = SettingsDialog(self.settings, self)

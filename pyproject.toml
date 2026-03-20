@@ -40,6 +40,8 @@ packages = ["interactive_feedback_mcp"]
 "server.py" = "interactive_feedback_mcp/server.py"
 "feedback_ui.py" = "interactive_feedback_mcp/feedback_ui.py"
 "VERSION" = "interactive_feedback_mcp/VERSION"
+"README.md" = "interactive_feedback_mcp/README.md"
+"README_EN.md" = "interactive_feedback_mcp/README_EN.md"
 
 [tool.hatch.build.targets.sdist]
 include = [
