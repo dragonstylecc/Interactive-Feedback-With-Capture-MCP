@@ -64,6 +64,21 @@ Heartbeat features:
 - **Auto Retry** — After closing an orphaned window, automatically retries once
 - **Fallback** — If retry fails, prompts the Agent to switch to the built-in `AskQuestion` tool
 
+### Auto Submit Timer (Bypass 1-Hour Limit)
+
+Cursor has an approximately 1-hour hard limit on tool execution (not configurable). Bypass it with the built-in **auto-submit timer**:
+
+1. Open Settings (⚙ button) → Enable "Auto Submit"
+2. Set countdown to **3000 seconds** (50 minutes, triggers before the 1-hour limit)
+3. After saving, a real-time countdown is shown at the bottom
+
+**How it works:**
+- If user doesn't submit within the countdown → UI auto-submits a `[心跳]` (heartbeat) message
+- AI recognizes it and **immediately re-invokes** `interactive_feedback` (configured in Rules)
+- A new window opens, user continues working
+- Loops until user submits actual feedback — **unlimited wait time**
+- Each re-invocation costs minimal tokens with very low context pollution
+
 ### Multi-Agent Parallel Support
 
 When multiple Agents run in parallel within the same project, each Agent's feedback window is independently managed:
@@ -85,6 +100,7 @@ Click the **⚙ gear button** at the bottom of the feedback window:
 - **Default Toggles** — Configure default states for "Use Chinese" and "Reload Rules"
 - **Quick Reply Management** — Add/edit/delete custom quick reply presets
 - **Reset to Defaults** — Restore the default quick reply list
+- **Auto Submit Timer** — Enable configurable countdown auto-submit to bypass Cursor's 1-hour hard limit (see below)
 - **Version Check & Update** — Check latest version from PyPI/GitHub, one-click update (source users: `git pull`, pip users: `pip install --upgrade`)
 
 ### 🔄 Auto Update
@@ -152,6 +168,7 @@ uvx interactive-feedback-with-capture install
 This auto-configures:
 - `~/.cursor/mcp.json` (Cursor global MCP settings)
 - `~/.cursor/rules/mcp-feedback.mdc` (Cursor Rules file)
+- Cursor `settings.json` timeout parameters (`mcp.server.timeout`, etc.)
 - Restart Cursor to activate
 
 Or manually add to `mcp.json` (Cursor) or `claude_desktop_config.json` (Claude Desktop):
@@ -222,6 +239,13 @@ Manual setup: Add to Cursor Settings > Rules > User Rules:
 | ⌨️ Ctrl+V | Paste clipboard images in the text box |
 
 Thumbnails are shown inline. **Click a thumbnail to preview full-size.** Click ✕ to remove.
+
+## 📖 Built-in Documentation Viewer
+
+The feedback window provides a "📖 Docs" button at the bottom:
+- Opens a built-in documentation viewer rendering the local README (no internet required)
+- Auto-selects Chinese or English version based on UI language
+- Includes a "View on GitHub" button for online access
 
 ## ⌨️ Keyboard Shortcuts
 

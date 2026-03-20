@@ -64,6 +64,21 @@
 - **自动重试** — 孤立窗口关闭后，自动尝试重新弹出反馈窗口一次
 - **备用方案** — 重试仍失败时返回错误信息，Agent 自动切换到内置 `AskQuestion` 工具
 
+### 自动定时提交（突破 1 小时限制）
+
+Cursor 存在约 1 小时的工具执行硬上限（不可配置）。通过内置的**自动定时提交**功能绕过：
+
+1. 打开设置页面（⚙ 按钮）→ 启用「自动定时提交」
+2. 设置倒计时为 **3000 秒**（50 分钟，在 1 小时限制之前触发）
+3. 保存后底部显示实时倒计时
+
+**工作原理：**
+- 用户未在倒计时内提交 → UI 自动提交 `[心跳]` 消息
+- AI 识别后**立即重新调用** `interactive_feedback`（Rules 已配置）
+- 新窗口打开，用户继续操作
+- 循环重调直到用户提交实际反馈，等待时间**无上限**
+- 每次重调仅消耗极少 token，上下文污染极低
+
 ### 多 Agent 并行支持
 
 当同一项目中有多个 Agent 并行运行时，每个 Agent 的反馈弹窗独立管理：
@@ -85,6 +100,7 @@
 - **默认开关** — 配置"使用中文"和"重新读取Rules"的默认勾选状态
 - **快捷回复管理** — 添加/编辑/删除自定义快捷回复列表
 - **一键重置** — 恢复默认快捷回复列表
+- **自动定时提交** — 启用后在可配置的倒计时结束时自动提交，突破 Cursor 1 小时硬性限制（见下方说明）
 - **版本检查与更新** — 检查 PyPI/GitHub 最新版本，一键更新（源码用户 `git pull`，pip 用户 `pip install --upgrade`）
 
 ### 🔄 自动更新
@@ -152,6 +168,7 @@ uvx interactive-feedback-with-capture install
 自动完成：
 - 更新 `~/.cursor/mcp.json`（Cursor 全局 MCP 配置）
 - 安装 `~/.cursor/rules/mcp-feedback.mdc`（Cursor Rules 文件）
+- 配置 Cursor `settings.json` 超时参数（`mcp.server.timeout` 等）
 - 重启 Cursor 即可使用
 
 也可以手动配置 `mcp.json`（Cursor）或 `claude_desktop_config.json`（Claude Desktop）：
@@ -222,6 +239,13 @@ git clone https://github.com/dragonstylecc/Interactive-Feedback-With-Capture-MCP
 | ⌨️ Ctrl+V | 在文本框中直接粘贴剪贴板图片 |
 
 截图以缩略图形式预览，**点击缩略图可放大查看原图**，点击 ✕ 可删除。
+
+## 📖 内置文档查看器
+
+反馈窗口底部提供「📖 详细说明」按钮：
+- 点击打开内置文档查看器，本地渲染 README（无需联网）
+- 根据界面语言自动选择中文或英文版本
+- 底部提供「在 GitHub 上查看」按钮跳转在线文档
 
 ## ⌨️ 快捷键
 
