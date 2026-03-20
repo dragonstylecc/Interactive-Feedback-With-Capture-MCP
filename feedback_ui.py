@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QCheckBox, QTextEdit, QGroupBox,
     QFrame, QScrollArea, QFileDialog, QSizePolicy, QDialog, QMenu, QComboBox,
+    QSpinBox,
 )
 from PySide6.QtCore import Qt, Signal, QTimer, QSettings, QByteArray, QBuffer, QIODevice, QUrl
 from PySide6.QtGui import QIcon, QKeyEvent, QPalette, QColor, QPixmap, QImage, QAction, QDesktopServices
@@ -132,6 +133,10 @@ _I18N = {
         "docs_github": "🌐 在 GitHub 上查看",
         "docs_close": "关闭",
         "docs_not_found": "未找到本地文档，请访问 GitHub 查看：",
+        "auto_submit": "自动定时提交",
+        "auto_submit_enable": "启用自动提交（突破1小时限制）",
+        "auto_submit_seconds": "倒计时（秒）：",
+        "auto_submit_countdown": "⏱ 自动提交倒计时：{m}:{s}",
     },
     "en": {
         "message": "Message:",
@@ -191,6 +196,10 @@ _I18N = {
         "docs_github": "🌐 View on GitHub",
         "docs_close": "Close",
         "docs_not_found": "Local docs not found. Visit GitHub:",
+        "auto_submit": "Auto Submit",
+        "auto_submit_enable": "Enable auto-submit (bypass 1h limit)",
+        "auto_submit_seconds": "Countdown (sec):",
+        "auto_submit_countdown": "⏱ Auto-submit in: {m}:{s}",
     },
 }
 
@@ -393,6 +402,30 @@ class SettingsDialog(QDialog):
         replies_layout.addWidget(reset_btn)
         layout.addWidget(replies_group)
 
+        # --- Auto-submit ---
+        auto_group = QGroupBox(_t("auto_submit"))
+        auto_layout = QVBoxLayout(auto_group)
+        self.auto_submit_cb = QCheckBox(_t("auto_submit_enable"))
+        self.auto_submit_cb.setChecked(settings.value("auto_submit_enabled", False, type=bool))
+        auto_layout.addWidget(self.auto_submit_cb)
+
+        sec_row = QHBoxLayout()
+        sec_label = QLabel(_t("auto_submit_seconds"))
+        sec_label.setStyleSheet("color: #ccc;")
+        sec_row.addWidget(sec_label)
+        self.auto_submit_spin = QSpinBox()
+        self.auto_submit_spin.setRange(60, 7200)
+        self.auto_submit_spin.setSingleStep(60)
+        self.auto_submit_spin.setValue(settings.value("auto_submit_seconds", 3000, type=int))
+        self.auto_submit_spin.setStyleSheet(
+            "QSpinBox { background: #2a2a2a; color: #e0e0e0; border: 1px solid #555; "
+            "border-radius: 3px; padding: 3px 8px; }"
+        )
+        sec_row.addWidget(self.auto_submit_spin)
+        sec_row.addStretch()
+        auto_layout.addLayout(sec_row)
+        layout.addWidget(auto_group)
+
         # --- Update section ---
         update_group = QGroupBox(_t("version_update"))
         update_layout = QVBoxLayout(update_group)
@@ -530,6 +563,8 @@ class SettingsDialog(QDialog):
         self.settings.setValue("quick_replies", lines)
         lang = self._lang_combo.currentData()
         self.settings.setValue("ui_language", lang if lang else "")
+        self.settings.setValue("auto_submit_enabled", self.auto_submit_cb.isChecked())
+        self.settings.setValue("auto_submit_seconds", self.auto_submit_spin.value())
         self.accept()
 
 
@@ -853,7 +888,51 @@ class FeedbackUI(QMainWindow):
 
         feedback_layout.addLayout(bottom_bar)
 
+        # --- Auto-submit countdown ---
+        self._auto_submit_label = QLabel("")
+        self._auto_submit_label.setStyleSheet(
+            "color: #e0a030; font-size: 11px; padding: 2px 4px;"
+        )
+        self._auto_submit_label.setVisible(False)
+        feedback_layout.addWidget(self._auto_submit_label)
+
+        self._auto_remaining = 0
+        self._auto_timer = QTimer(self)
+        self._auto_timer.setInterval(1000)
+        self._auto_timer.timeout.connect(self._auto_submit_tick)
+        if self.settings.value("auto_submit_enabled", False, type=bool):
+            secs = self.settings.value("auto_submit_seconds", 3000, type=int)
+            self._start_auto_submit(secs)
+
         layout.addWidget(self.feedback_group)
+
+    # --- Auto-submit ---
+
+    def _start_auto_submit(self, seconds: int):
+        self._auto_remaining = seconds
+        self._auto_submit_label.setVisible(True)
+        self._update_auto_label()
+        self._auto_timer.start()
+
+    def _auto_submit_tick(self):
+        self._auto_remaining -= 1
+        if self._auto_remaining <= 0:
+            self._auto_timer.stop()
+            self._auto_submit_label.setText("")
+            self.feedback_text.setPlainText("")
+            self.feedback_result = FeedbackResult(
+                interactive_feedback="[心跳] 等待超时，请重新调用 interactive_feedback 继续对话。",
+                images=[],
+            )
+            self.close()
+            return
+        self._update_auto_label()
+
+    def _update_auto_label(self):
+        m, s = divmod(self._auto_remaining, 60)
+        self._auto_submit_label.setText(
+            _t("auto_submit_countdown", m=f"{m:02d}", s=f"{s:02d}")
+        )
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls() or event.mimeData().hasImage():
@@ -881,6 +960,12 @@ class FeedbackUI(QMainWindow):
         if dialog.exec() == QDialog.Accepted:
             self.chinese_toggle.setChecked(self.settings.value("use_chinese", True, type=bool))
             self.reload_rules_toggle.setChecked(self.settings.value("reload_rules", False, type=bool))
+            self._auto_timer.stop()
+            if self.settings.value("auto_submit_enabled", False, type=bool):
+                secs = self.settings.value("auto_submit_seconds", 3000, type=int)
+                self._start_auto_submit(secs)
+            else:
+                self._auto_submit_label.setVisible(False)
 
     # --- Quick Reply ---
 
@@ -1010,6 +1095,7 @@ class FeedbackUI(QMainWindow):
     # --- Submit / Close ---
 
     def _submit_feedback(self):
+        self._auto_timer.stop()
         feedback_text = self.feedback_text.toPlainText().strip()
         selected_options = []
 

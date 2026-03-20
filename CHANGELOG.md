@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.5.0
+
+### New Features
+- **Auto-submit timer (L3)** — Configurable countdown in Settings to auto-submit `[心跳]` before Cursor's 1-hour hard limit; AI automatically re-invokes for seamless infinite wait
+- **L2 timeout configuration** — `install` command now auto-configures `mcp.server.timeout` and `mcp.elicitation.timeout` in Cursor's `settings.json`
+
+### Improvements
+- Robust in-app update: `uv tool upgrade` → `pip install --upgrade` → `uv cache clean` fallback chain with shorter timeouts
+
 ## v0.4.7
 - **Robust in-app update** — Restructured update logic: try `uv tool upgrade` → `pip install --upgrade` → `uv cache clean` fallback chain; all with shorter timeouts to prevent hangs
 

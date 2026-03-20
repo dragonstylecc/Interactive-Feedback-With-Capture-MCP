@@ -354,6 +354,45 @@ def _install():
         f.write(_RULES_CONTENT)
     print(f"✅ Rules file installed: {rules_path}")
 
+    # --- Cursor settings.json (L2 timeout) ---
+    settings_path = os.path.join(
+        os.environ.get("APPDATA", home), "Cursor", "User", "settings.json"
+    )
+    if not os.path.exists(settings_path):
+        alt = os.path.join(home, ".config", "Cursor", "User", "settings.json")
+        if os.path.exists(alt):
+            settings_path = alt
+
+    _TIMEOUT_KEYS = {
+        "mcp.server.timeout": 86400000,
+        "mcp.elicitation.timeout": 86400000,
+    }
+    if os.path.exists(settings_path):
+        try:
+            with open(settings_path, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+            changed = False
+            for key, val in _TIMEOUT_KEYS.items():
+                if settings.get(key) != val:
+                    settings[key] = val
+                    changed = True
+            if changed:
+                with open(settings_path, "w", encoding="utf-8") as f:
+                    json.dump(settings, f, indent=4, ensure_ascii=False)
+                print(f"✅ Cursor timeout configured: {settings_path}")
+            else:
+                print(f"ℹ️  Cursor timeout already configured: {settings_path}")
+        except Exception as e:
+            print(f"⚠️  Could not update settings.json: {e}")
+            print(f"   Please manually add to {settings_path}:")
+            for key, val in _TIMEOUT_KEYS.items():
+                print(f'   "{key}": {val},')
+    else:
+        print(f"⚠️  settings.json not found at {settings_path}")
+        print("   Please manually add to Cursor settings.json (Ctrl+Shift+P → Open Settings JSON):")
+        for key, val in _TIMEOUT_KEYS.items():
+            print(f'   "{key}": {val},')
+
     print("\n🎉 Installation complete! Restart Cursor to activate.")
     print("   MCP tool: interactive_feedback")
     print("   Rules: always-apply mcp-feedback.mdc")
